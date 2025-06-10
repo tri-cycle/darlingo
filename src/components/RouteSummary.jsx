@@ -30,7 +30,15 @@ const RouteSegment = ({ segment, isLast }) => {
   else { // 3: 도보
     icon = '🚶';
     title = `도보 ${segment.sectionTime}분`;
-    details = `${segment.distance}m 이동`;
+    
+    // IntegratedRoute.jsx에서 추가해 준 startName과 endName이 있는지 확인합니다.
+    if (segment.startName && segment.endName) {
+      // 두 이름이 모두 있다면, "출발지 → 도착지 (이동 거리)" 형식으로 상세 정보를 만듭니다.
+      details = `${segment.startName} → ${segment.endName} (${segment.distance}m 이동)`;
+    } else {
+      // 그렇지 않은 경우(예: 중간 환승 도보), 기존처럼 이동 거리만 표시합니다.
+      details = `${segment.distance}m 이동`;
+    }
   }
 
   // 각 경로 단계를 렌더링합니다.
@@ -66,10 +74,14 @@ export default function RouteSummary({ summary }) {
   const { info, subPath } = summary;
 
   // "도보 0분" 문제를 해결하기 위해 화면에 표시할 경로만 필터링합니다.
-  // trafficType이 3(도보)이면서 sectionTime이 0인 환승 구간을 제외시킵니다.
-  const visibleSubPath = subPath.filter(segment => 
-    !(segment.trafficType === 3 && segment.sectionTime === 0)
-  );
+  const visibleSubPath = subPath.filter((segment, index) => {
+    // 필터링할 조건: 도보(3)이면서, 이동시간(sectionTime)이 0분이고, 첫 번째 구간(index === 0)이 아닐 때
+    const isZeroMinTransferWalk = 
+      segment.trafficType === 3 && segment.sectionTime === 0 && index !== 0;
+    
+    // 위의 조건이 참(true)이면 필터에서 제외(false 반환), 거짓이면 포함(true 반환)
+    return !isZeroMinTransferWalk;
+  });
 
   return (
     <div className="mt-6 p-4 border rounded-lg bg-gray-50">
