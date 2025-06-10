@@ -1,13 +1,15 @@
+// src/main.jsx
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
-import './index.css'; // 스타일 적용할 거 있으면
-import { RouteProvider } from './context/RouteContext'; // 우리가 쓰는 context
+import App from './App';                        // ✅ App 컴포넌트 import
+import './styles.css';                          // ✅ 전역 스타일 import (필요 시)
+
+import { RouteContextProvider } from './context/RouteContext';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <RouteProvider>
+    <RouteContextProvider>
       <App />
-    </RouteProvider>
+    </RouteContextProvider>
   </React.StrictMode>
 );
