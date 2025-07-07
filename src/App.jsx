@@ -12,8 +12,8 @@ import DdarungiMarkers from "./components/DdarungiMarkers";
 import IntegratedRoute from "./components/IntegratedRoute";
 import { RouteContext } from "./context/RouteContext";
 import { fetchAllStations } from "./utils/fetchAllStations";
-// [추가 1] 새로 만든 RouteSummary 컴포넌트를 가져옵니다.
 import RouteSummary from "./components/RouteSummary";
+import RouteList from "./components/RouteList";
 
 const defaultCenter = { lat: 37.5866169, lng: 127.097436 };
 
@@ -24,8 +24,8 @@ export default function App() {
   const [mapInstance, setMapInstance] = useState(null);
   const [stations, setStations] = useState([]);
   const [showRoute, setShowRoute] = useState(false);
-  // [추가 2] 경로 요약 정보를 저장할 상태를 만듭니다. 초기값은 null입니다.
-  const [routeSummary, setRouteSummary] = useState(null);
+  const [routes, setRoutes] = useState([]);
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -39,10 +39,11 @@ export default function App() {
     })();
   }, []);
 
-  // 출발/도착지가 바뀌면 기존 경로와 요약 정보를 숨깁니다.
+  // 출발지나 도착지가 변경되면 기존 경로 정보를 초기화합니다.
   useEffect(() => {
     setShowRoute(false);
-    setRouteSummary(null);
+    setRoutes([]);
+    setSelectedRouteIndex(0);
   }, [startLocation, endLocation]);
 
   const handleMapLoad = useCallback((map) => setMapInstance(map), []);
@@ -53,8 +54,8 @@ export default function App() {
       alert("출발·도착·지도를 모두 설정해 주세요.");
       return;
     }
-    // [수정 1] 새로운 계산을 시작하기 전에 이전 요약 정보를 초기화합니다.
-    setRouteSummary(null);
+    setRoutes([]);
+    setSelectedRouteIndex(0);
     setShowRoute(true);
   }, [startLocation, endLocation, mapInstance]);
 
@@ -75,8 +76,12 @@ export default function App() {
           경로 계산하기
         </button>
 
-        {/* [추가 3] routeSummary 상태에 정보가 있을 때만 요약 컴포넌트를 보여줍니다. */}
-        <RouteSummary summary={routeSummary} />
+        <RouteList
+          routes={routes}
+          selectedIndex={selectedRouteIndex}
+          setSelectedRouteIndex={setSelectedRouteIndex}
+        />
+        <RouteSummary summary={routes[selectedRouteIndex]?.summary} />
       </aside>
 
       <div className="flex-1 h-full">
@@ -98,8 +103,9 @@ export default function App() {
               end={endLocation}
               stations={stations}
               bikeTimeSec={bikeTimeSec}
-              // [추가 4] 요약 정보를 업데이트하는 함수를 props로 전달합니다.
-              setRouteSummary={setRouteSummary}
+              routes={routes}
+              selectedIndex={selectedRouteIndex}
+              setRoutes={setRoutes}
             />
           )}
         </MapLoader>
