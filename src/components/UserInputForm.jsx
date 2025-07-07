@@ -34,9 +34,6 @@ export default function UserInputForm({ bikeTimeSec, setBikeTimeSec }) {
           className="w-full border px-3 py-2 rounded"
           placeholder="예: 15"
         />
-        <p className="text-sm text-gray-500">
-          예: 15분 입력 시 내부에서 900초로 변환
-        </p>
       </div>
     </div>
   );
