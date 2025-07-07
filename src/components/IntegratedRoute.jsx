@@ -182,8 +182,19 @@ export default function IntegratedRoute({
             const bikeSegment = { type: 'bike', color: ROUTE_COLORS.BIKE, coords: bikePath };
 
             const resEnd = await fetchOdsayRoute({ y: +transferStation.stationLatitude, x: +transferStation.stationLongitude }, { y: end.lat, x: end.lng });
-            const endSubPaths = resEnd?.result?.path[0]?.subPath || [];
-            const endSegments = resEnd.error ? [] : await processOdsayPath(resEnd.result.path[0], { lat: +transferStation.stationLatitude, lng: +transferStation.stationLongitude }, end);
+            let endSubPaths = resEnd?.result?.path[0]?.subPath || [];
+            let endSegments = [];
+            if (endSubPaths.length === 0) {
+                const manualWalkCoords = await fetchTmapRoute({ lat: +transferStation.stationLatitude, lng: +transferStation.stationLongitude }, end);
+                const distance = Math.round(haversine(+transferStation.stationLatitude, +transferStation.stationLongitude, end.lat, end.lng));
+                const sectionTime = Math.max(1, Math.round(distance / 80));
+                const manualWalkSubPath = { trafficType: 3, distance, sectionTime };
+                const manualWalkSegment = { ...manualWalkSubPath, type: 'walk', color: ROUTE_COLORS.WALK, coords: manualWalkCoords };
+                endSubPaths = [manualWalkSubPath];
+                endSegments = [manualWalkSegment];
+            } else {
+                endSegments = resEnd.error ? [] : await processOdsayPath(resEnd.result.path[0], { lat: +transferStation.stationLatitude, lng: +transferStation.stationLongitude }, end);
+            }
 
             const combinedSubPath = [...startSubPaths, bikeSubPath, ...endSubPaths];
             const segments = [...startSegments, bikeSegment, ...endSegments];
@@ -219,8 +230,19 @@ export default function IntegratedRoute({
             const bikeSegment = { type: 'bike', color: ROUTE_COLORS.BIKE, coords: bikePath };
 
             const resEnd = await fetchOdsayRoute({ y: +endStation.stationLatitude, x: +endStation.stationLongitude }, { y: end.lat, x: end.lng });
-            const endSubPaths = resEnd?.result?.path[0]?.subPath || [];
-            const endSegments = resEnd.error ? [] : await processOdsayPath(resEnd.result.path[0], { lat: +endStation.stationLatitude, lng: +endStation.stationLongitude }, end);
+            let endSubPaths = resEnd?.result?.path[0]?.subPath || [];
+            let endSegments = [];
+            if (endSubPaths.length === 0) {
+                const manualWalkCoords = await fetchTmapRoute({ lat: +endStation.stationLatitude, lng: +endStation.stationLongitude }, end);
+                const distance = Math.round(haversine(+endStation.stationLatitude, +endStation.stationLongitude, end.lat, end.lng));
+                const sectionTime = Math.max(1, Math.round(distance / 80));
+                const manualWalkSubPath = { trafficType: 3, distance, sectionTime };
+                const manualWalkSegment = { ...manualWalkSubPath, type: 'walk', color: ROUTE_COLORS.WALK, coords: manualWalkCoords };
+                endSubPaths = [manualWalkSubPath];
+                endSegments = [manualWalkSegment];
+            } else {
+                endSegments = resEnd.error ? [] : await processOdsayPath(resEnd.result.path[0], { lat: +endStation.stationLatitude, lng: +endStation.stationLongitude }, end);
+            }
 
             const combinedSubPath = [...startSubPaths, bikeSubPath, ...endSubPaths];
             const segments = [...startSegments, bikeSegment, ...endSegments];
