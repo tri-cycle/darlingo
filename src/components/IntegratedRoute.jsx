@@ -207,7 +207,7 @@ export default function IntegratedRoute({
             const startStation = findNearestStation(start, stations);
             const endStation = findNearestStation(end, stations);
             if (!startStation || !endStation) return null;
-            const { segment2, transferStation } = await fetchTimedBikeSegments(startStation, endStation, stations, bikeTimeSec);
+            const { segment1, transferStation } = await fetchTimedBikeSegments(endStation, startStation, stations, bikeTimeSec);
 
             const resStart = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: +transferStation.stationLatitude, x: +transferStation.stationLongitude });
             let startSubPaths = resStart?.result?.path[0]?.subPath || [];
@@ -224,9 +224,12 @@ export default function IntegratedRoute({
                 startSegments = resStart.error ? [] : await processOdsayPath(resStart.result.path[0], start, { lat: +transferStation.stationLatitude, lng: +transferStation.stationLongitude });
             }
 
-            const bikeSec = segment2.routes[0].summary.duration;
+            const bikeSec = segment1.routes[0].summary.duration;
             const bikeSubPath = { trafficType: 4, laneColor: ROUTE_COLORS.BIKE, startName: transferStation.stationName.replace(/^\d+\.\s*/, ''), endName: endStation.stationName.replace(/^\d+\.\s*/, ''), sectionTime: Math.round(bikeSec / 60) };
-            const bikePath = polyline.decode(segment2.routes[0].geometry, 5).map(([lat, lng]) => new window.naver.maps.LatLng(lat, lng));
+            const bikePath = polyline
+                .decode(segment1.routes[0].geometry, 5)
+                .reverse()
+                .map(([lat, lng]) => new window.naver.maps.LatLng(lat, lng));
             const bikeSegment = { type: 'bike', color: ROUTE_COLORS.BIKE, coords: bikePath };
 
             const resEnd = await fetchOdsayRoute({ y: +endStation.stationLatitude, x: +endStation.stationLongitude }, { y: end.lat, x: end.lng });
