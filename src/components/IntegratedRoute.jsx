@@ -175,9 +175,38 @@ export default function IntegratedRoute({
                 startSegments = resStart.error ? [] : await processOdsayPath(resStart.result.path[0], start, { lat: +startStation.stationLatitude, lng: +startStation.stationLongitude });
             }
 
+            console.log("--- 🚴 Bike-First 경로 탐색 시작 ---");
+            console.log("➡️ 보내는 값 (to fetchTimedBikeSegments):", {
+                startStation: startStation.stationName,
+                endStation: endStation.stationName,
+                bikeTimeSec: bikeTimeSec,
+            });
+
             const { segment1, transferStation } = await fetchTimedBikeSegments(startStation, endStation, stations, bikeTimeSec);
-            const bikeSec = segment1.routes[0].summary.duration;
-            const bikeSubPath = { trafficType: 4, laneColor: ROUTE_COLORS.BIKE, startName: startStation.stationName.replace(/^\d+\.\s*/, ''), endName: transferStation.stationName.replace(/^\d+\.\s*/, ''), sectionTime: Math.round(bikeSec / 60) };
+            
+            console.log("📍 API가 반환한 값:", segment1.routes[0].summary);
+            
+            const bikeDist = segment1.routes[0].summary.distance; 
+            const FIXED_BIKE_SPEED_KMPH = 13; // ◀️◀️ 여기를 13으로 수정
+            const newBikeSec = (bikeDist / 1000) / FIXED_BIKE_SPEED_KMPH * 3600;
+
+            const bikeSubPath = { 
+                trafficType: 4, 
+                laneColor: ROUTE_COLORS.BIKE, 
+                startName: startStation.stationName.replace(/^\d+\.\s*/, ''), 
+                endName: transferStation.stationName.replace(/^\d+\.\s*/, ''), 
+                sectionTime: Math.round(newBikeSec / 60),
+                distance: bikeDist, 
+                avgSpeed: FIXED_BIKE_SPEED_KMPH,
+            };
+            
+            console.log("📈 우리가 계산한 값:", {
+                sectionTime: bikeSubPath.sectionTime,
+                distance: bikeSubPath.distance,
+                avgSpeed: bikeSubPath.avgSpeed
+            });
+            console.log("------------------------------------");
+
             const bikePath = polyline.decode(segment1.routes[0].geometry, 5).map(([lat, lng]) => new window.naver.maps.LatLng(lat, lng));
             const bikeSegment = { type: 'bike', color: ROUTE_COLORS.BIKE, coords: bikePath };
 
@@ -198,7 +227,7 @@ export default function IntegratedRoute({
 
             const combinedSubPath = [...startSubPaths, bikeSubPath, ...endSubPaths];
             const segments = [...startSegments, bikeSegment, ...endSegments];
-            const summary = { info: { totalTime: (resStart?.result?.path[0]?.info.totalTime || startSubPaths[0]?.sectionTime || 0) + Math.round(bikeSec / 60) + (resEnd?.result?.path[0]?.info.totalTime || 0) }, subPath: combinedSubPath };
+            const summary = { info: { totalTime: (resStart?.result?.path[0]?.info.totalTime || startSubPaths[0]?.sectionTime || 0) + Math.round(newBikeSec / 60) + (resEnd?.result?.path[0]?.info.totalTime || 0) }, subPath: combinedSubPath };
             addNames(summary);
             return { segments, summary };
         }
@@ -207,6 +236,14 @@ export default function IntegratedRoute({
             const startStation = findNearestStation(start, stations);
             const endStation = findNearestStation(end, stations);
             if (!startStation || !endStation) return null;
+
+            console.log("--- 🚴 Bike-Last 경로 탐색 시작 ---");
+            console.log("➡️ 보내는 값 (to fetchTimedBikeSegments):", {
+                startStation: endStation.stationName,
+                endStation: startStation.stationName,
+                bikeTimeSec: bikeTimeSec,
+            });
+
             const { segment1, transferStation } = await fetchTimedBikeSegments(endStation, startStation, stations, bikeTimeSec);
 
             const resStart = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: +transferStation.stationLatitude, x: +transferStation.stationLongitude });
@@ -223,9 +260,30 @@ export default function IntegratedRoute({
             } else {
                 startSegments = resStart.error ? [] : await processOdsayPath(resStart.result.path[0], start, { lat: +transferStation.stationLatitude, lng: +transferStation.stationLongitude });
             }
+            
+            console.log("📍 API가 반환한 값:", segment1.routes[0].summary);
+            
+            const bikeDist = segment1.routes[0].summary.distance;
+            const FIXED_BIKE_SPEED_KMPH = 13; // ◀️◀️ 여기를 13으로 수정
+            const newBikeSec = (bikeDist / 1000) / FIXED_BIKE_SPEED_KMPH * 3600;
 
-            const bikeSec = segment1.routes[0].summary.duration;
-            const bikeSubPath = { trafficType: 4, laneColor: ROUTE_COLORS.BIKE, startName: transferStation.stationName.replace(/^\d+\.\s*/, ''), endName: endStation.stationName.replace(/^\d+\.\s*/, ''), sectionTime: Math.round(bikeSec / 60) };
+            const bikeSubPath = { 
+                trafficType: 4, 
+                laneColor: ROUTE_COLORS.BIKE, 
+                startName: transferStation.stationName.replace(/^\d+\.\s*/, ''), 
+                endName: endStation.stationName.replace(/^\d+\.\s*/, ''), 
+                sectionTime: Math.round(newBikeSec / 60),
+                distance: bikeDist,
+                avgSpeed: FIXED_BIKE_SPEED_KMPH
+            };
+            
+            console.log("📈 우리가 계산한 값:", {
+                sectionTime: bikeSubPath.sectionTime,
+                distance: bikeSubPath.distance,
+                avgSpeed: bikeSubPath.avgSpeed
+            });
+            console.log("-----------------------------------");
+
             const bikePath = polyline
                 .decode(segment1.routes[0].geometry, 5)
                 .reverse()
@@ -249,7 +307,7 @@ export default function IntegratedRoute({
 
             const combinedSubPath = [...startSubPaths, bikeSubPath, ...endSubPaths];
             const segments = [...startSegments, bikeSegment, ...endSegments];
-            const summary = { info: { totalTime: (resStart?.result?.path[0]?.info.totalTime || startSubPaths[0]?.sectionTime || 0) + Math.round(bikeSec / 60) + (resEnd?.result?.path[0]?.info.totalTime || 0) }, subPath: combinedSubPath };
+            const summary = { info: { totalTime: (resStart?.result?.path[0]?.info.totalTime || startSubPaths[0]?.sectionTime || 0) + Math.round(newBikeSec / 60) + (resEnd?.result?.path[0]?.info.totalTime || 0) }, subPath: combinedSubPath };
             addNames(summary);
             return { segments, summary };
         }

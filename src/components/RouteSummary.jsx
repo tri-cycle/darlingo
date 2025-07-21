@@ -25,7 +25,8 @@ const RouteSegment = ({ segment, isLast }) => {
   } else if (segment.trafficType === 4) { // 4: 자전거 (따릉이GO에서 정의한 커스텀 타입)
     icon = '🚲';
     title = <span style={{ color: segment.laneColor, fontWeight: 'bold' }}>따릉이</span>;
-    details = `${segment.startName} → ${segment.endName} (${segment.sectionTime}분)`;
+    // 상세 정보에 시간, 거리, 평균 속도를 모두 표시하도록 수정합니다.
+    details = `${segment.startName} → ${segment.endName} (${segment.sectionTime}분, ${Math.round(segment.distance)}m, ${segment.avgSpeed.toFixed(1)}km/h)`;
   }
   else { // 3: 도보
     icon = '🚶';
