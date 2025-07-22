@@ -132,22 +132,29 @@ export default function IntegratedRoute({
                 const r1 = await createBikeFirst();
                 if (r1) results.push(r1);
 
-                const r2 = await createBikeLast();
-                if (r2) results.push(r2);
-            }
+                if (results.length < 5) {
+                    const r2 = await createBikeLast();
+                    if (r2) results.push(r2);
+                }
 
-            // ----- 대중교통 경로 -----
-            const remain = 5 - results.length;
-            if (remain > 0) {
+                let altIndex = 1;
+                while (results.length < 5) {
+                    const alt = await createBikeFirst(altIndex);
+                    if (!alt) break;
+                    results.push(alt);
+                    altIndex += 1;
+                }
+            } else {
+                // ----- 대중교통 경로 -----
                 const res = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: end.lat, x: end.lng });
                 if (res && !res.error && res.result.path.length > 0) {
-                    const paths = res.result.path.slice(0, remain);
+                    const paths = res.result.path.slice(0, 5);
                     for (const p of paths) {
                         const segments = await processOdsayPath(p, start, end);
                         addNames(p);
                         results.push({ segments, summary: p });
                     }
-                } else if (results.length === 0) {
+                } else {
                     const footCoords = await fetchTmapRoute(start, end);
                     const segments = [{ trafficType: 3, type: 'walk', color: ROUTE_COLORS.WALK, coords: footCoords }];
                     results.push({ segments, summary: null });
@@ -158,13 +165,15 @@ export default function IntegratedRoute({
         };
 
         // ----- 전략별 계산 함수들 -----
-        async function createBikeFirst() {
+        async function createBikeFirst(pathIndex = 0) {
             const startStation = findNearestStation(start, stations);
             const endStation = findNearestStation(end, stations);
             if (!startStation || !endStation) return null;
 
             const resStart = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: +startStation.stationLatitude, x: +startStation.stationLongitude });
-            let startSubPaths = resStart?.result?.path[0]?.subPath || [];
+            const startPaths = resStart?.result?.path || [];
+            const startPath = startPaths[pathIndex] || startPaths[0];
+            let startSubPaths = startPath?.subPath || [];
             let startSegments = [];
             if (startSubPaths.length === 0) {
                 const manualWalkCoords = await fetchTmapRoute(start, { lat: +startStation.stationLatitude, lng: +startStation.stationLongitude });
@@ -175,7 +184,7 @@ export default function IntegratedRoute({
                 startSubPaths = [manualWalkSubPath];
                 startSegments = [manualWalkSegment];
             } else {
-                startSegments = resStart.error ? [] : await processOdsayPath(resStart.result.path[0], start, { lat: +startStation.stationLatitude, lng: +startStation.stationLongitude });
+                startSegments = resStart.error || !startPath ? [] : await processOdsayPath(startPath, start, { lat: +startStation.stationLatitude, lng: +startStation.stationLongitude });
             }
 
             console.log("--- 🚴 Bike-First 경로 탐색 시작 ---");
@@ -214,7 +223,9 @@ export default function IntegratedRoute({
             const bikeSegment = { type: 'bike', color: ROUTE_COLORS.BIKE, coords: bikePath };
 
             const resEnd = await fetchOdsayRoute({ y: +transferStation.stationLatitude, x: +transferStation.stationLongitude }, { y: end.lat, x: end.lng });
-            let endSubPaths = resEnd?.result?.path[0]?.subPath || [];
+            const endPaths = resEnd?.result?.path || [];
+            const endPath = endPaths[pathIndex] || endPaths[0];
+            let endSubPaths = endPath?.subPath || [];
             let endSegments = [];
             if (endSubPaths.length === 0) {
                 const manualWalkCoords = await fetchTmapRoute({ lat: +transferStation.stationLatitude, lng: +transferStation.stationLongitude }, end);
@@ -225,17 +236,17 @@ export default function IntegratedRoute({
                 endSubPaths = [manualWalkSubPath];
                 endSegments = [manualWalkSegment];
             } else {
-                endSegments = resEnd.error ? [] : await processOdsayPath(resEnd.result.path[0], { lat: +transferStation.stationLatitude, lng: +transferStation.stationLongitude }, end);
+                endSegments = resEnd.error || !endPath ? [] : await processOdsayPath(endPath, { lat: +transferStation.stationLatitude, lng: +transferStation.stationLongitude }, end);
             }
 
             const combinedSubPath = [...startSubPaths, bikeSubPath, ...endSubPaths];
             const segments = [...startSegments, bikeSegment, ...endSegments];
-            const summary = { info: { totalTime: (resStart?.result?.path[0]?.info.totalTime || startSubPaths[0]?.sectionTime || 0) + Math.round(newBikeSec / 60) + (resEnd?.result?.path[0]?.info.totalTime || 0) }, subPath: combinedSubPath };
+            const summary = { info: { totalTime: (startPath?.info?.totalTime || startSubPaths[0]?.sectionTime || 0) + Math.round(newBikeSec / 60) + (endPath?.info?.totalTime || 0) }, subPath: combinedSubPath };
             addNames(summary);
             return { segments, summary };
         }
 
-        async function createBikeLast() {
+        async function createBikeLast(pathIndex = 0) {
             const startStation = findNearestStation(start, stations);
             const endStation = findNearestStation(end, stations);
             if (!startStation || !endStation) return null;
@@ -250,7 +261,9 @@ export default function IntegratedRoute({
             const { segment1, transferStation } = await fetchTimedBikeSegments(endStation, startStation, stations, bikeTimeSec);
 
             const resStart = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: +transferStation.stationLatitude, x: +transferStation.stationLongitude });
-            let startSubPaths = resStart?.result?.path[0]?.subPath || [];
+            const startPaths = resStart?.result?.path || [];
+            const startPath = startPaths[pathIndex] || startPaths[0];
+            let startSubPaths = startPath?.subPath || [];
             let startSegments = [];
             if (startSubPaths.length === 0) {
                 const manualWalkCoords = await fetchTmapRoute(start, { lat: +transferStation.stationLatitude, lng: +transferStation.stationLongitude });
@@ -261,7 +274,7 @@ export default function IntegratedRoute({
                 startSubPaths = [manualWalkSubPath];
                 startSegments = [manualWalkSegment];
             } else {
-                startSegments = resStart.error ? [] : await processOdsayPath(resStart.result.path[0], start, { lat: +transferStation.stationLatitude, lng: +transferStation.stationLongitude });
+                startSegments = resStart.error || !startPath ? [] : await processOdsayPath(startPath, start, { lat: +transferStation.stationLatitude, lng: +transferStation.stationLongitude });
             }
             
             console.log("📍 API가 반환한 값:", segment1.routes[0].summary);
@@ -294,7 +307,9 @@ export default function IntegratedRoute({
             const bikeSegment = { type: 'bike', color: ROUTE_COLORS.BIKE, coords: bikePath };
 
             const resEnd = await fetchOdsayRoute({ y: +endStation.stationLatitude, x: +endStation.stationLongitude }, { y: end.lat, x: end.lng });
-            let endSubPaths = resEnd?.result?.path[0]?.subPath || [];
+            const endPaths = resEnd?.result?.path || [];
+            const endPath = endPaths[pathIndex] || endPaths[0];
+            let endSubPaths = endPath?.subPath || [];
             let endSegments = [];
             if (endSubPaths.length === 0) {
                 const manualWalkCoords = await fetchTmapRoute({ lat: +endStation.stationLatitude, lng: +endStation.stationLongitude }, end);
@@ -305,12 +320,12 @@ export default function IntegratedRoute({
                 endSubPaths = [manualWalkSubPath];
                 endSegments = [manualWalkSegment];
             } else {
-                endSegments = resEnd.error ? [] : await processOdsayPath(resEnd.result.path[0], { lat: +endStation.stationLatitude, lng: +endStation.stationLongitude }, end);
+                endSegments = resEnd.error || !endPath ? [] : await processOdsayPath(endPath, { lat: +endStation.stationLatitude, lng: +endStation.stationLongitude }, end);
             }
 
             const combinedSubPath = [...startSubPaths, bikeSubPath, ...endSubPaths];
             const segments = [...startSegments, bikeSegment, ...endSegments];
-            const summary = { info: { totalTime: (resStart?.result?.path[0]?.info.totalTime || startSubPaths[0]?.sectionTime || 0) + Math.round(newBikeSec / 60) + (resEnd?.result?.path[0]?.info.totalTime || 0) }, subPath: combinedSubPath };
+            const summary = { info: { totalTime: (startPath?.info?.totalTime || startSubPaths[0]?.sectionTime || 0) + Math.round(newBikeSec / 60) + (endPath?.info?.totalTime || 0) }, subPath: combinedSubPath };
             addNames(summary);
             return { segments, summary };
         }
