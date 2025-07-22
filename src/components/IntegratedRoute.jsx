@@ -127,28 +127,31 @@ export default function IntegratedRoute({
         const calculateRoutes = async () => {
             const results = [];
 
-            // ---------- 대중교통만 이용 ----------
-            if (bikeTimeSec <= 0) {
-                const res = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: end.lat, x: end.lng });
-                let segments = [];
-                let summary = null;
-                if (res && !res.error && res.result.path.length > 0) {
-                    segments = await processOdsayPath(res.result.path[0], start, end);
-                    summary = res.result.path[0];
-                } else {
-                    const footCoords = await fetchTmapRoute(start, end);
-                    segments.push({ trafficType: 3, type: 'walk', color: ROUTE_COLORS.WALK, coords: footCoords });
-                }
-                if (summary) addNames(summary);
-                results.push({ segments, summary });
-            } else {
-                // ---------- bike-first ----------
+            // ----- 자전거 연계 경로 -----
+            if (bikeTimeSec > 0) {
                 const r1 = await createBikeFirst();
                 if (r1) results.push(r1);
 
-                // ---------- bike-last ----------
                 const r2 = await createBikeLast();
                 if (r2) results.push(r2);
+            }
+
+            // ----- 대중교통 경로 -----
+            const remain = 5 - results.length;
+            if (remain > 0) {
+                const res = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: end.lat, x: end.lng });
+                if (res && !res.error && res.result.path.length > 0) {
+                    const paths = res.result.path.slice(0, remain);
+                    for (const p of paths) {
+                        const segments = await processOdsayPath(p, start, end);
+                        addNames(p);
+                        results.push({ segments, summary: p });
+                    }
+                } else if (results.length === 0) {
+                    const footCoords = await fetchTmapRoute(start, end);
+                    const segments = [{ trafficType: 3, type: 'walk', color: ROUTE_COLORS.WALK, coords: footCoords }];
+                    results.push({ segments, summary: null });
+                }
             }
 
             setRoutes(results);
