@@ -129,20 +129,38 @@ export default function IntegratedRoute({
 
             // ----- 자전거 연계 경로 -----
             if (bikeTimeSec > 0) {
-                const r1 = await createBikeFirst();
-                if (r1) results.push(r1);
+                const startStation = findNearestStation(start, stations);
+                const endStation = findNearestStation(end, stations);
 
-                if (results.length < 5) {
-                    const r2 = await createBikeLast();
-                    if (r2) results.push(r2);
-                }
+                if (startStation && endStation) {
+                    const forward = await fetchTimedBikeSegments(
+                        startStation,
+                        endStation,
+                        stations,
+                        bikeTimeSec
+                    );
 
-                let altIndex = 1;
-                while (results.length < 5) {
-                    const alt = await createBikeFirst(altIndex);
-                    if (!alt) break;
-                    results.push(alt);
-                    altIndex += 1;
+                    const r1 = await createBikeFirst(forward.segment1, forward.transferStation);
+                    if (r1) results.push(r1);
+
+                    if (results.length < 5) {
+                        const backward = await fetchTimedBikeSegments(
+                            endStation,
+                            startStation,
+                            stations,
+                            bikeTimeSec
+                        );
+                        const r2 = await createBikeLast(backward.segment1, backward.transferStation);
+                        if (r2) results.push(r2);
+                    }
+
+                    let altIndex = 1;
+                    while (results.length < 5) {
+                        const alt = await createBikeFirst(forward.segment1, forward.transferStation, altIndex);
+                        if (!alt) break;
+                        results.push(alt);
+                        altIndex += 1;
+                    }
                 }
             } else {
                 // ----- 대중교통 경로 -----
@@ -165,7 +183,7 @@ export default function IntegratedRoute({
         };
 
         // ----- 전략별 계산 함수들 -----
-        async function createBikeFirst(pathIndex = 0) {
+        async function createBikeFirst(segment1, transferStation, pathIndex = 0) {
             const startStation = findNearestStation(start, stations);
             const endStation = findNearestStation(end, stations);
             if (!startStation || !endStation) return null;
@@ -188,13 +206,11 @@ export default function IntegratedRoute({
             }
 
             console.log("--- 🚴 Bike-First 경로 탐색 시작 ---");
-            console.log("➡️ 보내는 값 (to fetchTimedBikeSegments):", {
+            console.log("➡️ 미리 받아온 값:", {
                 startStation: startStation.stationName,
                 endStation: endStation.stationName,
                 bikeTimeSec: bikeTimeSec,
             });
-
-            const { segment1, transferStation } = await fetchTimedBikeSegments(startStation, endStation, stations, bikeTimeSec);
             
             console.log("📍 API가 반환한 값:", segment1.routes[0].summary);
             
@@ -246,19 +262,17 @@ export default function IntegratedRoute({
             return { segments, summary };
         }
 
-        async function createBikeLast(pathIndex = 0) {
+        async function createBikeLast(segment1, transferStation, pathIndex = 0) {
             const startStation = findNearestStation(start, stations);
             const endStation = findNearestStation(end, stations);
             if (!startStation || !endStation) return null;
 
             console.log("--- 🚴 Bike-Last 경로 탐색 시작 ---");
-            console.log("➡️ 보내는 값 (to fetchTimedBikeSegments):", {
+            console.log("➡️ 미리 받아온 값:", {
                 startStation: endStation.stationName,
                 endStation: startStation.stationName,
                 bikeTimeSec: bikeTimeSec,
             });
-
-            const { segment1, transferStation } = await fetchTimedBikeSegments(endStation, startStation, stations, bikeTimeSec);
 
             const resStart = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: +transferStation.stationLatitude, x: +transferStation.stationLongitude });
             const startPaths = resStart?.result?.path || [];
