@@ -3,6 +3,13 @@ import polyline from "polyline";
 import { fetchBikeRoute } from "./fetchBikeRoute";
 import haversine from "./haversine";
 
+// 간단한 캐시로 ORS 호출을 최소화합니다.
+const cache = new Map();
+
+export function clearTimedBikeSegmentsCache() {
+  cache.clear();
+}
+
 /**
  * 사용자가 입력한 시간에 맞춰 두 구간으로 분할된 자전거 경로를 가져옵니다.
  *
@@ -17,12 +24,18 @@ export async function fetchTimedBikeSegments(
   stations,
   bikeTimeSec
 ) {
-  // 1) 전체 구간 경로를 API로 호출합니다.
-  const all = await fetchBikeRoute([
-    [ +startStation.stationLongitude, +startStation.stationLatitude ],
-    [ +endStation.stationLongitude,   +endStation.stationLatitude   ]
-  ]);
-  const route = all.routes[0];
+  const key = `${startStation.stationId}-${endStation.stationId}-${bikeTimeSec}`;
+  if (cache.has(key)) {
+    return cache.get(key);
+  }
+
+  const promise = (async () => {
+    // 1) 전체 구간 경로를 API로 호출합니다.
+    const all = await fetchBikeRoute([
+      [ +startStation.stationLongitude, +startStation.stationLatitude ],
+      [ +endStation.stationLongitude,   +endStation.stationLatitude   ]
+    ]);
+    const route = all.routes[0];
 
   // 2) 고정된 속도(13km/h)로 사용자가 입력한 시간(bikeTimeSec)만큼 갔을 때의 거리를 계산합니다.
   const FIXED_BIKE_SPEED_KMPH = 13; // ◀️◀️ 여기를 13으로 수정
@@ -82,5 +95,15 @@ export async function fetchTimedBikeSegments(
     ],
   };
 
-  return { segment1, segment2, transferStation };
+    return { segment1, segment2, transferStation };
+  })()
+    .catch((err) => {
+      cache.delete(key);
+      throw err;
+    });
+
+  cache.set(key, promise);
+  const result = await promise;
+  cache.set(key, result);
+  return result;
 }
