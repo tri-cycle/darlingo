@@ -5,9 +5,26 @@
  * @returns {Promise<Array>} 네이버 지도 LatLng 객체로 변환된 좌표 배열
  */
 export async function fetchTmapRoute(start, end) {
-  // .env 파일에 저장된 TMAP API 키를 가져옵니다.
   const apiKey = import.meta.env.VITE_TMAP_API_KEY;
   const url = "https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1";
+
+  function haversineDistance(a, b) {
+    const R = 6371000;
+    const toRad = (x) => (x * Math.PI) / 180;
+    const dLat = toRad(b.lat - a.lat);
+    const dLng = toRad(b.lng - a.lng);
+    const lat1 = toRad(a.lat);
+    const lat2 = toRad(b.lat);
+    const h =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+  }
+
+  if (haversineDistance(start, end) < 100) {
+    console.warn("출발지와 도착지가 너무 가까워 TMAP API 호출 생략");
+    return [];
+  }
 
   try {
     const response = await fetch(url, {
@@ -23,6 +40,8 @@ export async function fetchTmapRoute(start, end) {
         endY: end.lat.toString(),
         startName: "출발지",
         endName: "도착지",
+        reqCoordType: "WGS84GEO",
+        resCoordType: "WGS84GEO"
       }),
     });
 
@@ -33,7 +52,6 @@ export async function fetchTmapRoute(start, end) {
 
     const data = await response.json();
 
-    // TMAP 응답에서 좌표 데이터만 추출하여 네이버 지도 형식으로 변환합니다.
     const coordinates = data.features.flatMap((feature) => {
       if (feature.geometry.type === "LineString") {
         return feature.geometry.coordinates.map(
@@ -44,9 +62,8 @@ export async function fetchTmapRoute(start, end) {
     });
 
     return coordinates;
-
   } catch (error) {
     console.error("TMAP 경로 조회 중 에러 발생:", error);
-    return []; // 에러 발생 시 빈 배열을 반환하여 앱이 멈추지 않도록 합니다.
+    return [];
   }
 }
