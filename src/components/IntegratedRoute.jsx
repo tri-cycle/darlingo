@@ -94,6 +94,16 @@ function findNearestStation(point, stations, radius = 1000) {
     return best;
 }
 
+// 주어진 path 객체의 전체 소요 시간을 계산합니다.
+// ODsay API의 info.totalTime이 존재하면 이를 사용하고,
+// 그렇지 않으면 subPath의 sectionTime 합계를 반환합니다.
+function getTotalTime(path, subPaths) {
+    if (path && path.info && typeof path.info.totalTime === 'number') {
+        return path.info.totalTime;
+    }
+    return (subPaths || []).reduce((sum, sp) => sum + (sp.sectionTime || 0), 0);
+}
+
 
 export default function IntegratedRoute({
     mapInstance,
@@ -267,7 +277,8 @@ export default function IntegratedRoute({
 
             const combinedSubPath = [...startSubPaths, bikeSubPath, ...endSubPaths];
             const segments = [...startSegments, bikeSegment, ...endSegments];
-            const summary = { info: { totalTime: (startPath?.info?.totalTime || startSubPaths[0]?.sectionTime || 0) + Math.round(newBikeSec / 60) + (endPath?.info?.totalTime || 0) }, subPath: combinedSubPath };
+            const summaryTime = getTotalTime(startPath, startSubPaths) + Math.round(newBikeSec / 60) + getTotalTime(endPath, endSubPaths);
+            const summary = { info: { totalTime: summaryTime }, subPath: combinedSubPath };
             addNames(summary);
             return { segments, summary };
         }
@@ -349,7 +360,8 @@ export default function IntegratedRoute({
 
             const combinedSubPath = [...startSubPaths, bikeSubPath, ...endSubPaths];
             const segments = [...startSegments, bikeSegment, ...endSegments];
-            const summary = { info: { totalTime: (startPath?.info?.totalTime || startSubPaths[0]?.sectionTime || 0) + Math.round(newBikeSec / 60) + (endPath?.info?.totalTime || 0) }, subPath: combinedSubPath };
+            const summaryTime = getTotalTime(startPath, startSubPaths) + Math.round(newBikeSec / 60) + getTotalTime(endPath, endSubPaths);
+            const summary = { info: { totalTime: summaryTime }, subPath: combinedSubPath };
             addNames(summary);
             return { segments, summary };
         }
