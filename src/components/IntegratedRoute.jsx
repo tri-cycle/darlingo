@@ -179,7 +179,17 @@ export default function IntegratedRoute({
                 }
             }
 
-            setRoutes(results);
+            // 중복 경로 제거 후 상태 업데이트
+            const unique = [];
+            const seen = new Set();
+            for (const r of results) {
+                const key = JSON.stringify(r.summary);
+                if (seen.has(key)) continue;
+                seen.add(key);
+                unique.push(r);
+            }
+
+            setRoutes(unique);
         };
 
         // ----- 전략별 계산 함수들 -----
