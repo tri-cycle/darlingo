@@ -1,7 +1,7 @@
 // src/utils/fetchBikeRoute.js
 const ORS_API_KEY = import.meta.env.VITE_ORS_API_KEY;
 
-// in-memory cache: key is "from-lng,from-lat|to-lng,to-lat"
+// in-memory cache: key is "lng,lat|lng,lat|..." for all waypoints
 const cache = new Map();
 
 // cache clear helper
@@ -9,9 +9,15 @@ export function clearBikeRouteCache() {
   cache.clear();
 }
 
-export async function fetchBikeRoute(from, to) {
+/**
+ * ORS 자전거 경로를 조회합니다.
+ *
+ * @param {Array<Array<number>>} coordinates 경유지를 포함한 [lng, lat] 배열
+ *   예: [[lng1, lat1], [lng2, lat2], ...]
+ */
+export async function fetchBikeRoute(coordinates) {
 
-  const key = `${from[0]},${from[1]}|${to[0]},${to[1]}`;
+  const key = coordinates.map((c) => `${c[0]},${c[1]}`).join('|');
   if (cache.has(key)) {
     // 캐시에 저장된 promise 혹은 결과 반환
     return cache.get(key);
@@ -22,7 +28,7 @@ export async function fetchBikeRoute(from, to) {
 
   // --- ⬇️ (수정된 부분) ⬇️ ---
   // API 호출 직전에 어떤 값으로 요청하는지 콘솔에 출력합니다.
-  console.log("🚀 ORS API 호출 시작:", { from, to });
+  console.log("🚀 ORS API 호출 시작:", coordinates);
   // --- ⬆️ (수정된 부분) ⬆️ ---
 
   const res = await fetch(
@@ -34,7 +40,7 @@ export async function fetchBikeRoute(from, to) {
         "Content-Type": "application/json; charset=utf-8",
       },
       body: JSON.stringify({
-        coordinates: [from, to],
+        coordinates,
         options: {
           avoid_features: ["steps"],
           profile_params: {

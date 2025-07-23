@@ -18,10 +18,10 @@ export async function fetchTimedBikeSegments(
   bikeTimeSec
 ) {
   // 1) 전체 구간 경로를 API로 호출합니다.
-  const all = await fetchBikeRoute(
+  const all = await fetchBikeRoute([
     [ +startStation.stationLongitude, +startStation.stationLatitude ],
     [ +endStation.stationLongitude,   +endStation.stationLatitude   ]
-  );
+  ]);
   const route = all.routes[0];
 
   // 2) 고정된 속도(13km/h)로 사용자가 입력한 시간(bikeTimeSec)만큼 갔을 때의 거리를 계산합니다.
@@ -49,15 +49,38 @@ export async function fetchTimedBikeSegments(
     return dPrev < dCurr ? prev : curr;
   });
 
-  // 5) '출발→환승' 과 '환승→도착' 두 구간으로 경로를 분할하여 다시 API를 호출합니다.
-  const segment1 = await fetchBikeRoute(
+  // 5) 환승 지점을 포함한 경로를 한 번만 조회한 뒤 구간을 분할합니다.
+  const multi = await fetchBikeRoute([
     [ +startStation.stationLongitude, +startStation.stationLatitude ],
-    [ +transferStation.stationLongitude, +transferStation.stationLatitude ]
-  );
-  const segment2 = await fetchBikeRoute(
     [ +transferStation.stationLongitude, +transferStation.stationLatitude ],
-    [ +endStation.stationLongitude,       +endStation.stationLatitude     ]
-  );
+    [ +endStation.stationLongitude,       +endStation.stationLatitude     ],
+  ]);
+
+  const full = multi.routes[0];
+  const allCoords = polyline.decode(full.geometry); // 전체 경로 좌표
+  const wp = full.way_points; // 각 지점의 geometry index
+  const segInfo = full.segments; // 세그먼트 정보
+
+  const coords1 = allCoords.slice(wp[0], wp[1] + 1);
+  const coords2 = allCoords.slice(wp[1], wp[2] + 1);
+
+  const segment1 = {
+    routes: [
+      {
+        geometry: polyline.encode(coords1, 5),
+        summary: { distance: segInfo[0].distance, duration: segInfo[0].duration },
+      },
+    ],
+  };
+
+  const segment2 = {
+    routes: [
+      {
+        geometry: polyline.encode(coords2, 5),
+        summary: { distance: segInfo[1].distance, duration: segInfo[1].duration },
+      },
+    ],
+  };
 
   return { segment1, segment2, transferStation };
 }

@@ -22,7 +22,7 @@ export default function BikeRoute({ mapInstance, from, to }) {
 
     (async () => {
       try {
-        const data = await fetchBikeRoute(from, to);
+        const data = await fetchBikeRoute([from, to]);
         console.log("✅ ORS 응답 성공:", data.routes[0].summary);
         setRoute(data.routes[0]);
       } catch (err) {
