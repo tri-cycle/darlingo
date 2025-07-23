@@ -171,6 +171,18 @@ export default function IntegratedRoute({
                         results.push(alt);
                         altIndex += 1;
                     }
+
+                    // 중간에 자전거를 타는 경로 추가
+                    if (results.length < 5) {
+                        const midStations = await findMiddleStations();
+                        if (midStations) {
+                            const midRoute = await createBikeMiddle(
+                                midStations.startStation,
+                                midStations.endStation
+                            );
+                            if (midRoute) results.push(midRoute);
+                        }
+                    }
                 }
             } else {
                 // ----- 대중교통 경로 -----
@@ -364,6 +376,104 @@ export default function IntegratedRoute({
             const summary = { info: { totalTime: summaryTime }, subPath: combinedSubPath };
             addNames(summary);
             return { segments, summary };
+        }
+
+        async function createBikeMiddle(startStation, endStation, pathIndex = 0) {
+            if (!startStation || !endStation) return null;
+
+            const resStart = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: +startStation.stationLatitude, x: +startStation.stationLongitude });
+            const startPaths = resStart?.result?.path || [];
+            const startPath = startPaths[pathIndex] || startPaths[0];
+            let startSubPaths = startPath?.subPath || [];
+            let startSegments = [];
+            if (startSubPaths.length === 0) {
+                const manualWalkCoords = await fetchTmapRoute(start, { lat: +startStation.stationLatitude, lng: +startStation.stationLongitude });
+                const distance = Math.round(haversine(start.lat, start.lng, +startStation.stationLatitude, +startStation.stationLongitude));
+                const sectionTime = Math.max(1, Math.round(distance / 80));
+                const manualWalkSubPath = { trafficType: 3, distance, sectionTime };
+                const manualWalkSegment = { ...manualWalkSubPath, type: 'walk', color: ROUTE_COLORS.WALK, coords: manualWalkCoords };
+                startSubPaths = [manualWalkSubPath];
+                startSegments = [manualWalkSegment];
+            } else {
+                startSegments = resStart.error || !startPath ? [] : await processOdsayPath(startPath, start, { lat: +startStation.stationLatitude, lng: +startStation.stationLongitude });
+            }
+
+            const { segment1, segment2 } = await fetchTimedBikeSegments(startStation, endStation, stations, bikeTimeSec);
+
+            const bikeDist = segment1.routes[0].summary.distance + segment2.routes[0].summary.distance;
+            const FIXED_BIKE_SPEED_KMPH = 13;
+            const newBikeSec = (bikeDist / 1000) / FIXED_BIKE_SPEED_KMPH * 3600;
+
+            const coords1 = polyline.decode(segment1.routes[0].geometry, 5);
+            const coords2 = polyline.decode(segment2.routes[0].geometry, 5);
+            const bikePath = [...coords1, ...coords2.slice(1)].map(([lat, lng]) => new window.naver.maps.LatLng(lat, lng));
+            const bikeSegment = { type: 'bike', color: ROUTE_COLORS.BIKE, coords: bikePath };
+
+            const bikeSubPath = {
+                trafficType: 4,
+                laneColor: ROUTE_COLORS.BIKE,
+                startName: startStation.stationName.replace(/^\d+\.\s*/, ''),
+                endName: endStation.stationName.replace(/^\d+\.\s*/, ''),
+                sectionTime: Math.round(newBikeSec / 60),
+                distance: bikeDist,
+                avgSpeed: FIXED_BIKE_SPEED_KMPH,
+            };
+
+            const resEnd = await fetchOdsayRoute({ y: +endStation.stationLatitude, x: +endStation.stationLongitude }, { y: end.lat, x: end.lng });
+            const endPaths = resEnd?.result?.path || [];
+            const endPath = endPaths[pathIndex] || endPaths[0];
+            let endSubPaths = endPath?.subPath || [];
+            let endSegments = [];
+            if (endSubPaths.length === 0) {
+                const manualWalkCoords = await fetchTmapRoute({ lat: +endStation.stationLatitude, lng: +endStation.stationLongitude }, end);
+                const distance = Math.round(haversine(+endStation.stationLatitude, +endStation.stationLongitude, end.lat, end.lng));
+                const sectionTime = Math.max(1, Math.round(distance / 80));
+                const manualWalkSubPath = { trafficType: 3, distance, sectionTime };
+                const manualWalkSegment = { ...manualWalkSubPath, type: 'walk', color: ROUTE_COLORS.WALK, coords: manualWalkCoords };
+                endSubPaths = [manualWalkSubPath];
+                endSegments = [manualWalkSegment];
+            } else {
+                endSegments = resEnd.error || !endPath ? [] : await processOdsayPath(endPath, { lat: +endStation.stationLatitude, lng: +endStation.stationLongitude }, end);
+            }
+
+            const combinedSubPath = [...startSubPaths, bikeSubPath, ...endSubPaths];
+            const segments = [...startSegments, bikeSegment, ...endSegments];
+            const summaryTime = getTotalTime(startPath, startSubPaths) + Math.round(newBikeSec / 60) + getTotalTime(endPath, endSubPaths);
+            const summary = { info: { totalTime: summaryTime }, subPath: combinedSubPath };
+            addNames(summary);
+            return { segments, summary };
+        }
+
+        async function findMiddleStations() {
+            const res = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: end.lat, x: end.lng });
+            const path = res?.result?.path?.[0];
+            if (!path) return null;
+            const subPaths = path.subPath || [];
+            const total = getTotalTime(path, subPaths);
+            const mid = total / 2;
+            let acc = 0;
+            for (let i = 0; i < subPaths.length; i++) {
+                acc += subPaths[i].sectionTime || 0;
+                if (acc >= mid) {
+                    const prev = subPaths[i];
+                    const next = subPaths[i + 1];
+                    let prevPoint = start;
+                    if (prev?.passStopList?.stations?.length > 0) {
+                        const last = prev.passStopList.stations[prev.passStopList.stations.length - 1];
+                        prevPoint = { lat: +last.y, lng: +last.x };
+                    }
+                    let nextPoint = end;
+                    if (next?.passStopList?.stations?.length > 0) {
+                        const first = next.passStopList.stations[0];
+                        nextPoint = { lat: +first.y, lng: +first.x };
+                    }
+                    const startSt = findNearestStation(prevPoint, stations);
+                    const endSt = findNearestStation(nextPoint, stations);
+                    if (startSt && endSt) return { startStation: startSt, endStation: endSt };
+                    break;
+                }
+            }
+            return null;
         }
 
         calculateRoutes();
