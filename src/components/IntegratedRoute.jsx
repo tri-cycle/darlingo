@@ -201,7 +201,7 @@ export default function IntegratedRoute({
                 }
             }
 
-            // 중복 경로 제거 후 상태 업데이트
+            // 중복 경로 제거
             const unique = [];
             const seen = new Set();
             for (const r of results) {
@@ -211,7 +211,26 @@ export default function IntegratedRoute({
                 unique.push(r);
             }
 
-            setRoutes(unique);
+            // 🚶‍♀️ 전체 도보 시간 계산 함수
+            function calcWalkTime(summary) {
+                if (!summary || !summary.subPath) return Infinity;
+                return summary.subPath.reduce((acc, sp) => {
+                    return sp.trafficType === 3 ? acc + (sp.sectionTime || 0) : acc;
+                }, 0);
+            }
+
+            // 도보 시간 기준 정렬 및 필터링
+            const sorted = unique
+                .sort((a, b) => {
+                    const aWalk = calcWalkTime(a.summary);
+                    const bWalk = calcWalkTime(b.summary);
+                    if (aWalk >= 60 && bWalk >= 60) return 0;
+                    if (aWalk >= 60) return 1;
+                    if (bWalk >= 60) return -1;
+                    return aWalk - bWalk;
+                });
+
+            setRoutes(sorted.slice(0, 5));
         };
 
         // ----- 전략별 계산 함수들 -----
