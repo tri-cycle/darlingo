@@ -188,7 +188,7 @@ export default function IntegratedRoute({
                 // ----- 대중교통 경로 -----
                 const res = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: end.lat, x: end.lng });
                 if (res && !res.error && res.result.path.length > 0) {
-                    const paths = res.result.path.slice(0, 5);
+                    const paths = res.result.path.slice(0, 10);
                     for (const p of paths) {
                         const segments = await processOdsayPath(p, start, end);
                         addNames(p);
@@ -230,7 +230,7 @@ export default function IntegratedRoute({
                     return aWalk - bWalk;
                 });
 
-            setRoutes(sorted.slice(0, 5));
+            setRoutes(sorted.slice(0, Math.max(5, sorted.length)));
         };
 
         // ----- 전략별 계산 함수들 -----

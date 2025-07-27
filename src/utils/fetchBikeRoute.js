@@ -4,6 +4,25 @@ const ORS_API_KEY = import.meta.env.VITE_ORS_API_KEY;
 // in-memory cache: key is "lng,lat|lng,lat|..." for all waypoints
 const cache = new Map();
 
+// 최근 1분간 ORS 호출 시각을 저장하여 rate limit을 관리합니다.
+const callTimes = [];
+const LIMIT_PER_MINUTE = 40;
+
+async function ensureRateLimit() {
+  const now = Date.now();
+  // 1분을 지난 호출 기록은 제거합니다.
+  while (callTimes.length && now - callTimes[0] >= 60000) {
+    callTimes.shift();
+  }
+  if (callTimes.length >= LIMIT_PER_MINUTE) {
+    // 가장 오래된 호출로부터 1분이 지날 때까지 대기합니다.
+    const waitMs = 60000 - (now - callTimes[0]) + 10;
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+    return ensureRateLimit();
+  }
+  callTimes.push(Date.now());
+}
+
 // cache clear helper
 export function clearBikeRouteCache() {
   cache.clear();
@@ -25,6 +44,9 @@ export async function fetchBikeRoute(coordinates) {
 
   // 요청을 시작하면 즉시 promise를 캐시에 저장하여 중복 호출을 방지합니다.
   const promise = (async () => {
+
+  // 호출 회수를 제한하기 위해 rate limit을 확인합니다.
+  await ensureRateLimit();
 
   // --- ⬇️ (수정된 부분) ⬇️ ---
   // API 호출 직전에 어떤 값으로 요청하는지 콘솔에 출력합니다.
