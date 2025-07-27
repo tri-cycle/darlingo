@@ -19,9 +19,9 @@ function dedupAndSort(routes) {
   const sorted = unique.sort((a, b) => {
     const aWalk = calcWalkTime(a.summary);
     const bWalk = calcWalkTime(b.summary);
-    if (aWalk >= 100 && bWalk >= 100) return 0;
-    if (aWalk >= 100) return 1;
-    if (bWalk >= 100) return -1;
+    if (aWalk >= 60 && bWalk >= 60) return 0;
+    if (aWalk >= 60) return 1;
+    if (bWalk >= 60) return -1;
     return aWalk - bWalk;
   });
   return sorted.slice(0, 5);
