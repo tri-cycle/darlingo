@@ -54,6 +54,7 @@ export default function App() {
       alert("출발·도착·지도를 모두 설정해 주세요.");
       return;
     }
+    setBikeTimeSec(900); // 기본값 15분으로 초기화
     setRoutes([]);
     setSelectedRouteIndex(0);
     setShowRoute(true);
@@ -64,10 +65,7 @@ export default function App() {
       <aside className="w-1/3 bg-white p-8 shadow-lg overflow-auto">
         <h1 className="text-3xl font-bold mb-6">따릉이:Go</h1>
 
-        <UserInputForm
-          bikeTimeSec={bikeTimeSec}
-          setBikeTimeSec={setBikeTimeSec}
-        />
+        <UserInputForm />
 
         <button
           onClick={handleCalculate}

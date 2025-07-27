@@ -1,9 +1,9 @@
 // src/components/UserInputForm.jsx
 import React, { useContext } from "react";
-import { RouteContext } from "../context/RouteContext";  // RouteContext 직접 가져오기
+import { RouteContext } from "../context/RouteContext"; // RouteContext 직접 가져오기
 import PlaceAutocomplete from "./PlaceAutocomplete";
 
-export default function UserInputForm({ bikeTimeSec, setBikeTimeSec }) {
+export default function UserInputForm() {
   const { setStartLocation, setEndLocation } = useContext(RouteContext);
 
   return (
@@ -20,21 +20,7 @@ export default function UserInputForm({ bikeTimeSec, setBikeTimeSec }) {
         <PlaceAutocomplete onPlaceSelected={setEndLocation} />
       </div>
 
-      {/* 자전거 이용 시간 입력 */}
-      <div>
-        <label className="block mb-1 font-medium">자전거 이용 시간 (분)</label>
-        <input
-          type="number"
-          min="1"
-          value={Math.round(bikeTimeSec / 60)}
-          onChange={(e) => {
-            const minutes = parseInt(e.target.value, 10) || 0;
-            setBikeTimeSec(minutes * 60);
-          }}
-          className="w-full border px-3 py-2 rounded"
-          placeholder="예: 15"
-        />
-      </div>
+      {/* 이용 시간 입력은 기본값(15분)을 사용하므로 제거 */}
     </div>
   );
 }

@@ -135,100 +135,111 @@ export default function IntegratedRoute({
         }
 
         const calculateRoutes = async () => {
-            const results = [];
+            let timeSec = bikeTimeSec;
+            let sorted = [];
 
-            // ----- 자전거 연계 경로 -----
-            if (bikeTimeSec > 0) {
-                const startStation = findNearestStation(start, stations);
-                const endStation = findNearestStation(end, stations);
+            while (sorted.length < 5) {
+                const results = [];
 
-                if (startStation && endStation) {
-                    const forward = await fetchTimedBikeSegments(
-                        startStation,
-                        endStation,
-                        stations,
-                        bikeTimeSec
-                    );
+                // ----- 자전거 연계 경로 -----
+                if (timeSec > 0) {
+                    const startStation = findNearestStation(start, stations);
+                    const endStation = findNearestStation(end, stations);
 
-                    const r1 = await createBikeFirst(forward.segment1, forward.transferStation);
-                    if (r1) results.push(r1);
-
-                    if (results.length < 5) {
-                        const backward = await fetchTimedBikeSegments(
-                            endStation,
+                    if (startStation && endStation) {
+                        const forward = await fetchTimedBikeSegments(
                             startStation,
+                            endStation,
                             stations,
-                            bikeTimeSec
+                            timeSec
                         );
-                        const r2 = await createBikeLast(backward.segment1, backward.transferStation);
-                        if (r2) results.push(r2);
-                    }
 
-                    let altIndex = 1;
-                    while (results.length < 5) {
-                        const alt = await createBikeFirst(forward.segment1, forward.transferStation, altIndex);
-                        if (!alt) break;
-                        results.push(alt);
-                        altIndex += 1;
-                    }
+                        const r1 = await createBikeFirst(forward.segment1, forward.transferStation);
+                        if (r1) results.push(r1);
 
-                    // 중간에 자전거를 타는 경로 추가
-                    if (results.length < 5) {
-                        const midStations = await findMiddleStations();
-                        if (midStations) {
-                            const midRoute = await createBikeMiddle(
-                                midStations.startStation,
-                                midStations.endStation
+                        if (results.length < 5) {
+                            const backward = await fetchTimedBikeSegments(
+                                endStation,
+                                startStation,
+                                stations,
+                                timeSec
                             );
-                            if (midRoute) results.push(midRoute);
+                            const r2 = await createBikeLast(backward.segment1, backward.transferStation);
+                            if (r2) results.push(r2);
+                        }
+
+                        let altIndex = 1;
+                        while (results.length < 5) {
+                            const alt = await createBikeFirst(forward.segment1, forward.transferStation, altIndex);
+                            if (!alt) break;
+                            results.push(alt);
+                            altIndex += 1;
+                        }
+
+                        // 중간에 자전거를 타는 경로 추가
+                        if (results.length < 5) {
+                            const midStations = await findMiddleStations();
+                            if (midStations) {
+                                const midRoute = await createBikeMiddle(
+                                    midStations.startStation,
+                                    midStations.endStation
+                                );
+                                if (midRoute) results.push(midRoute);
+                            }
                         }
                     }
-                }
-            } else {
-                // ----- 대중교통 경로 -----
-                const res = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: end.lat, x: end.lng });
-                if (res && !res.error && res.result.path.length > 0) {
-                    const paths = res.result.path.slice(0, 10);
-                    for (const p of paths) {
-                        const segments = await processOdsayPath(p, start, end);
-                        addNames(p);
-                        results.push({ segments, summary: p });
-                    }
                 } else {
-                    const footCoords = await fetchTmapRoute(start, end);
-                    const segments = [{ trafficType: 3, type: 'walk', color: ROUTE_COLORS.WALK, coords: footCoords }];
-                    results.push({ segments, summary: null });
+                    // ----- 대중교통 경로 -----
+                    const res = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: end.lat, x: end.lng });
+                    if (res && !res.error && res.result.path.length > 0) {
+                        const paths = res.result.path.slice(0, 10);
+                        for (const p of paths) {
+                            const segments = await processOdsayPath(p, start, end);
+                            addNames(p);
+                            results.push({ segments, summary: p });
+                        }
+                    } else {
+                        const footCoords = await fetchTmapRoute(start, end);
+                        const segments = [{ trafficType: 3, type: 'walk', color: ROUTE_COLORS.WALK, coords: footCoords }];
+                        results.push({ segments, summary: null });
+                    }
+                }
+
+                // 중복 경로 제거
+                const unique = [];
+                const seen = new Set();
+                for (const r of results) {
+                    const key = JSON.stringify(r.summary);
+                    if (seen.has(key)) continue;
+                    seen.add(key);
+                    unique.push(r);
+                }
+
+                // 🚶‍♀️ 전체 도보 시간 계산 함수
+                function calcWalkTime(summary) {
+                    if (!summary || !summary.subPath) return Infinity;
+                    return summary.subPath.reduce((acc, sp) => {
+                        return sp.trafficType === 3 ? acc + (sp.sectionTime || 0) : acc;
+                    }, 0);
+                }
+
+                // 도보 시간 기준 정렬 및 필터링
+                sorted = unique
+                    .sort((a, b) => {
+                        const aWalk = calcWalkTime(a.summary);
+                        const bWalk = calcWalkTime(b.summary);
+                        if (aWalk >= 60 && bWalk >= 60) return 0;
+                        if (aWalk >= 60) return 1;
+                        if (bWalk >= 60) return -1;
+                        return aWalk - bWalk;
+                    });
+
+                if (sorted.length < 5) {
+                    timeSec += 900;
+                } else {
+                    break;
                 }
             }
-
-            // 중복 경로 제거
-            const unique = [];
-            const seen = new Set();
-            for (const r of results) {
-                const key = JSON.stringify(r.summary);
-                if (seen.has(key)) continue;
-                seen.add(key);
-                unique.push(r);
-            }
-
-            // 🚶‍♀️ 전체 도보 시간 계산 함수
-            function calcWalkTime(summary) {
-                if (!summary || !summary.subPath) return Infinity;
-                return summary.subPath.reduce((acc, sp) => {
-                    return sp.trafficType === 3 ? acc + (sp.sectionTime || 0) : acc;
-                }, 0);
-            }
-
-            // 도보 시간 기준 정렬 및 필터링
-            const sorted = unique
-                .sort((a, b) => {
-                    const aWalk = calcWalkTime(a.summary);
-                    const bWalk = calcWalkTime(b.summary);
-                    if (aWalk >= 60 && bWalk >= 60) return 0;
-                    if (aWalk >= 60) return 1;
-                    if (bWalk >= 60) return -1;
-                    return aWalk - bWalk;
-                });
 
             setRoutes(sorted.slice(0, Math.max(5, sorted.length)));
         };
