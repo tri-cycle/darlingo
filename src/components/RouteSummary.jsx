@@ -74,6 +74,19 @@ export default function RouteSummary({ summary }) {
   // `summary` 객체에서 총 소요 시간(info)과 세부 경로 목록(subPath)을 추출합니다.
   const { info, subPath } = summary;
 
+  // 따릉이 이용 시간과 대중교통 이용 시간을 각각 계산합니다.
+  const bikeTime = subPath.reduce(
+    (acc, seg) => (seg.trafficType === 4 ? acc + (seg.sectionTime || 0) : acc),
+    0,
+  );
+  const transitTime = subPath.reduce(
+    (acc, seg) =>
+      seg.trafficType === 1 || seg.trafficType === 2
+        ? acc + (seg.sectionTime || 0)
+        : acc,
+    0,
+  );
+
   // "도보 0분" 문제를 해결하기 위해 화면에 표시할 경로만 필터링합니다.
   const visibleSubPath = subPath.filter((segment, index) => {
     // 필터링할 조건: 도보(3)이면서, 이동시간(sectionTime)이 0분이고, 첫 번째 구간(index === 0)이 아닐 때
@@ -92,6 +105,14 @@ export default function RouteSummary({ summary }) {
         <p className="mt-1">
           <span className="font-medium">🕒 총 소요 시간:</span>
           <span className="text-blue-600 font-bold ml-2">{info.totalTime}분</span>
+        </p>
+        <p className="mt-1">
+          <span className="font-medium">🚲 따릉이 시간:</span>
+          <span className="text-blue-600 font-bold ml-2">{bikeTime}분</span>
+        </p>
+        <p className="mt-1">
+          <span className="font-medium">🚍 대중교통 시간:</span>
+          <span className="text-blue-600 font-bold ml-2">{transitTime}분</span>
         </p>
       </div>
       
