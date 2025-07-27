@@ -223,16 +223,31 @@ export default function IntegratedRoute({
                     }, 0);
                 }
 
-                // 도보 시간 기준 정렬 및 필터링
-                sorted = unique
-                    .sort((a, b) => {
-                        const aWalk = calcWalkTime(a.summary);
-                        const bWalk = calcWalkTime(b.summary);
-                        if (aWalk >= 60 && bWalk >= 60) return 0;
-                        if (aWalk >= 60) return 1;
-                        if (bWalk >= 60) return -1;
-                        return aWalk - bWalk;
-                    });
+                // 🚲 따릉이 이용 시간 계산 함수
+                function calcBikeTime(summary) {
+                    if (!summary || !summary.subPath) return Infinity;
+                    return summary.subPath.reduce((acc, sp) => {
+                        return sp.trafficType === 4 ? acc + (sp.sectionTime || 0) : acc;
+                    }, 0);
+                }
+
+                // 따릉이 사용 시간이 짧은 경로를 우선적으로 정렬하고
+                // 도보 시간이 60분 이상인 경우는 가장 뒤로 보냅니다.
+                sorted = unique.sort((a, b) => {
+                    const aWalk = calcWalkTime(a.summary);
+                    const bWalk = calcWalkTime(b.summary);
+                    if (aWalk >= 60 && bWalk >= 60) {
+                        const aBike = calcBikeTime(a.summary);
+                        const bBike = calcBikeTime(b.summary);
+                        return aBike - bBike;
+                    }
+                    if (aWalk >= 60) return 1;
+                    if (bWalk >= 60) return -1;
+                    const aBike = calcBikeTime(a.summary);
+                    const bBike = calcBikeTime(b.summary);
+                    if (aBike !== bBike) return aBike - bBike;
+                    return aWalk - bWalk;
+                });
 
                 if (sorted.length < 5) {
                     timeSec += 900;
