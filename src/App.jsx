@@ -29,6 +29,14 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   useEffect(() => {
+    if (!mapInstance) return;
+    const timer = setTimeout(() => {
+      naver.maps.Event.trigger(mapInstance, "resize");
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [isSidebarOpen, mapInstance]);
+
+  useEffect(() => {
     (async () => {
       try {
         const all = await fetchAllStations();
