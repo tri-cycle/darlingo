@@ -26,6 +26,7 @@ export default function App() {
   const [showRoute, setShowRoute] = useState(false);
   const [routes, setRoutes] = useState([]);
   const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   useEffect(() => {
     (async () => {
@@ -61,8 +62,30 @@ export default function App() {
   }, [startLocation, endLocation, mapInstance]);
 
   return (
-    <div className="flex h-screen">
-      <aside className="w-1/3 bg-white p-8 shadow-lg overflow-auto">
+    <div className="flex h-screen relative">
+      {!isSidebarOpen && (
+        <button
+          onClick={() => setIsSidebarOpen(true)}
+          className="reopen-sidebar absolute top-4 left-4 z-10 p-2 bg-white rounded shadow"
+        >
+          ☰
+        </button>
+      )}
+
+      <aside
+        className={`${
+          isSidebarOpen
+            ? "w-1/3 p-8 overflow-auto"
+            : "w-0 p-0 overflow-hidden"
+        } bg-white shadow-lg transition-all duration-300 relative`}
+      >
+        <button
+          onClick={() => setIsSidebarOpen((prev) => !prev)}
+          className="toggle-sidebar absolute top-4 right-4 p-2 bg-gray-200 rounded"
+        >
+          ✕
+        </button>
+
         <h1 className="text-3xl font-bold mb-6">따릉이:Go</h1>
 
         <UserInputForm />
@@ -82,7 +105,7 @@ export default function App() {
         <RouteSummary summary={routes[selectedRouteIndex]?.summary} />
       </aside>
 
-      <div className="flex-1 h-full">
+      <div className="flex-1 h-full transition-all duration-300">
         <MapLoader>
           <MapView
             center={startLocation || defaultCenter}
