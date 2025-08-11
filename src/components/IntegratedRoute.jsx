@@ -158,6 +158,45 @@ export default function IntegratedRoute({
                         const subPaths = path.subPath || [];
                         mergedSubPaths = mergedSubPaths.concat(subPaths);
                         totalTime += getTotalTime(path, subPaths);
+
+                        // 각 구간에 따릉이 경로 추가
+                        if (bikeTimeSec > 0 && stations.length > 0) {
+                            const startStation = findNearestStation(s, stations);
+                            const endStation = findNearestStation(e, stations);
+                            if (startStation && endStation) {
+                                const { segment1, segment2 } = await fetchTimedBikeSegments(
+                                    startStation,
+                                    endStation,
+                                    stations,
+                                    bikeTimeSec,
+                                );
+                                const coords1 = polyline.decode(segment1.routes[0].geometry, 5);
+                                const coords2 = polyline.decode(segment2.routes[0].geometry, 5);
+                                const bikePath = [...coords1, ...coords2.slice(1)].map(
+                                    ([lat, lng]) => new window.naver.maps.LatLng(lat, lng),
+                                );
+                                const bikeDist =
+                                    segment1.routes[0].summary.distance +
+                                    segment2.routes[0].summary.distance;
+                                const FIXED_BIKE_SPEED_KMPH = 13;
+                                const bikeSec = (bikeDist / 1000) / FIXED_BIKE_SPEED_KMPH * 3600;
+                                mergedSegments.push({
+                                    type: "bike",
+                                    color: ROUTE_COLORS.BIKE,
+                                    coords: bikePath,
+                                });
+                                mergedSubPaths.push({
+                                    trafficType: 4,
+                                    laneColor: ROUTE_COLORS.BIKE,
+                                    startName: startStation.stationName.replace(/^\d+\.\s*/, ''),
+                                    endName: endStation.stationName.replace(/^\d+\.\s*/, ''),
+                                    sectionTime: Math.round(bikeSec / 60),
+                                    distance: bikeDist,
+                                    avgSpeed: FIXED_BIKE_SPEED_KMPH,
+                                });
+                                totalTime += Math.round(bikeSec / 60);
+                            }
+                        }
                     }
                     const summary = { info: { totalTime }, subPath: mergedSubPaths };
                     addNames(summary);
