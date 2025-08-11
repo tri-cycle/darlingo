@@ -196,6 +196,20 @@ export default function PlaceAutocomplete({ placeholder, onPlaceSelected }) {
         className="w-full p-2 border rounded-md"
       />
 
+      {inputValue && (
+        <button
+          type="button"
+          onClick={() => {
+            setInputValue('');
+            setPredictions([]);
+            onPlaceSelected?.(null);
+          }}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+        >
+          ×
+        </button>
+      )}
+
       {/* 포커스가 있을 때만 목록을 보여줍니다. */}
       {isFocused && (
         <ul className="absolute w-full bg-white border border-gray-300 rounded-md mt-1 shadow-lg" style={{zIndex: 1000}}>
