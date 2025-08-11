@@ -4,7 +4,6 @@ import React, {
   useEffect,
   useState,
   useCallback,
-  useRef,
 } from "react";
 import useCurrentLocation from "./hooks/useCurrentLocation";
 import UserInputForm from "./components/UserInputForm";
@@ -46,7 +45,6 @@ export default function App() {
     bikeCount: 0,
   });
   const [statsCenter, setStatsCenter] = useState(null);
-  const clickMarkerRef = useRef(null);
 
   useEffect(() => {
     if (userLocation) {
@@ -122,23 +120,6 @@ export default function App() {
   }, [startLocation, endLocation, waypoints]);
 
   const handleMapLoad = useCallback((map) => setMapInstance(map), []);
-
-  const handleMapClick = useCallback(
-    ({ lat, lng }) => {
-      setStatsCenter({ lat, lng });
-      if (!mapInstance) return;
-      const position = new window.naver.maps.LatLng(lat, lng);
-      if (clickMarkerRef.current) {
-        clickMarkerRef.current.setPosition(position);
-      } else {
-        clickMarkerRef.current = new window.naver.maps.Marker({
-          position,
-          map: mapInstance,
-        });
-      }
-    },
-    [mapInstance]
-  );
 
   // "경로 계산하기" 버튼 클릭 시 실행될 함수
   const handleCalculate = useCallback(() => {
@@ -248,7 +229,6 @@ export default function App() {
           <MapView
             center={mapCenter}
             onMapLoad={handleMapLoad}
-            onMapClick={handleMapClick}
             className="w-full h-full"
           />
           <DdarungiMarkers
