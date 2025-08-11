@@ -94,7 +94,8 @@ export default function UserInputForm() {
         <button
           type="button"
           onClick={() => addWaypoint(null)}
-          className="flex-1 border-2 border-dashed border-gray-300 rounded-md py-2 text-sm text-gray-500 hover:bg-gray-50"
+          disabled={waypoints.length >= 2}
+          className="flex-1 border-2 border-dashed border-gray-300 rounded-md py-2 text-sm text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           경유지 추가
         </button>
@@ -106,6 +107,11 @@ export default function UserInputForm() {
           <SwapIcon />
         </button>
       </div>
+      {waypoints.length >= 2 && (
+        <p className="text-xs text-red-500">
+          경유지는 최대 2개까지 추가할 수 있습니다.
+        </p>
+      )}
 
       {/* 이용 시간 입력은 기본값(15분)을 사용하므로 제거 */}
     </div>

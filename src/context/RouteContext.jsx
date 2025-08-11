@@ -8,7 +8,10 @@ export function RouteContextProvider({ children }) {
   const [waypoints, setWaypoints] = useState([]);
 
   const addWaypoint = (waypoint) => {
-    setWaypoints((prev) => [...prev, waypoint]);
+    setWaypoints((prev) => {
+      if (prev.length >= 2) return prev;
+      return [...prev, waypoint];
+    });
   };
 
   const updateWaypoint = (index, waypoint) => {
