@@ -27,6 +27,7 @@ export default function App() {
   const [routes, setRoutes] = useState([]);
   const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isCalculating, setIsCalculating] = useState(false);
 
   useEffect(() => {
     if (!mapInstance) return;
@@ -63,6 +64,7 @@ export default function App() {
       alert("출발·도착·지도를 모두 설정해 주세요.");
       return;
     }
+    setIsCalculating(true);
     setBikeTimeSec(900); // 기본값 15분으로 초기화
     setRoutes([]);
     setSelectedRouteIndex(0);
@@ -100,9 +102,52 @@ export default function App() {
 
         <button
           onClick={handleCalculate}
-          className="mt-6 w-full bg-blue-600 text-white py-3 text-lg rounded-lg hover:bg-blue-700 transition"
+          disabled={isCalculating}
+          className="mt-6 w-full bg-blue-600 text-white py-3 text-lg rounded-lg hover:bg-blue-700 transition flex items-center justify-center disabled:opacity-50"
         >
-          경로 계산하기
+          {isCalculating ? (
+            <>
+              <svg
+                className="animate-spin h-5 w-5 mr-2 text-white"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                ></circle>
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                ></path>
+              </svg>
+              계산 중
+            </>
+          ) : (
+            <>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5 mr-2"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M5 12h14M12 5l7 7-7 7"
+                />
+              </svg>
+              길찾기
+            </>
+          )}
         </button>
 
         <RouteList
@@ -135,6 +180,7 @@ export default function App() {
               routes={routes}
               selectedIndex={selectedRouteIndex}
               setRoutes={setRoutes}
+              setIsCalculating={setIsCalculating}
             />
           )}
         </MapLoader>
