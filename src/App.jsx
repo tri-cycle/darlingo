@@ -28,6 +28,8 @@ export default function App() {
   const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isCalculating, setIsCalculating] = useState(false);
+  const [mapCenter, setMapCenter] = useState(defaultCenter);
+  const [isMapCentered, setIsMapCentered] = useState(false);
 
   useEffect(() => {
     if (!mapInstance) return;
@@ -48,6 +50,14 @@ export default function App() {
       }
     })();
   }, []);
+
+  // 출발지 또는 도착지가 처음 설정될 때 지도 중심을 이동시킵니다.
+  useEffect(() => {
+    if (!isMapCentered && (startLocation || endLocation)) {
+      setMapCenter(startLocation || endLocation);
+      setIsMapCentered(true);
+    }
+  }, [startLocation, endLocation, isMapCentered]);
 
   // 출발지·도착지·경유지가 변경되면 기존 경로 정보를 초기화합니다.
   useEffect(() => {
@@ -161,13 +171,13 @@ export default function App() {
       <div className="flex-1 h-full transition-all duration-300">
         <MapLoader>
           <MapView
-            center={startLocation || defaultCenter}
+            center={mapCenter}
             onMapLoad={handleMapLoad}
             className="w-full h-full"
           />
           <DdarungiMarkers
             map={mapInstance}
-            center={startLocation || defaultCenter}
+            center={mapCenter}
             stations={stations}
           />
           {showRoute && mapInstance && startLocation && endLocation && (

@@ -5,17 +5,30 @@ import { loadGoogleMapsScript } from "../utils/loadGoogleMaps";
 const RECENT_SEARCHES_KEY = 'recentSearches';
 const MAX_RECENT_SEARCHES = 10;
 
-export default function PlaceAutocomplete({ placeholder, onPlaceSelected }) {
+export default function PlaceAutocomplete({
+  placeholder,
+  onPlaceSelected,
+  value,
+  onValueChange,
+}) {
   // --- Ref 정의 ---
   const inputRef = useRef(null); // 우리가 직접 제어할 input DOM 요소를 가리킵니다.
   // Google의 최신 Place 클래스를 사용하기 위해, 로드되었는지 확인하는 용도
   const googlePlacesApi = useRef(null); 
   
   // --- State 정의 ---
-  const [inputValue, setInputValue] = useState(''); // React가 직접 제어하는 input의 값
+  const [inputValue, setInputValue] = useState(value || ''); // React가 직접 제어하는 input의 값
   const [predictions, setPredictions] = useState([]); // Google이 제안하는 장소 목록
   const [recentSearches, setRecentSearches] = useState([]); // 최근 검색어 목록
   const [isFocused, setIsFocused] = useState(false); // 입력창 포커스 여부
+
+  // 외부에서 전달된 value가 바뀌면 내부 입력값도 동기화합니다.
+  useEffect(() => {
+    // null이나 undefined가 들어올 경우 빈 문자열로 처리합니다.
+    if (value !== undefined) {
+      setInputValue(value || '');
+    }
+  }, [value]);
 
   // --- useEffect: 컴포넌트 초기화 ---
   useEffect(() => {
@@ -82,6 +95,7 @@ export default function PlaceAutocomplete({ placeholder, onPlaceSelected }) {
   const handleInputChange = async (e) => {
     const value = e.target.value;
     setInputValue(value);
+    onValueChange?.(value);
 
     // 입력값이 없으면 추천 목록을 비우고 종료합니다.
     if (!value) {
@@ -144,6 +158,7 @@ export default function PlaceAutocomplete({ placeholder, onPlaceSelected }) {
           
           setInputValue(newPlace.name);
           onPlaceSelected?.(newPlace);
+          onValueChange?.(newPlace.name);
           addRecentSearch(newPlace);
           
           setPredictions([]);
@@ -159,6 +174,7 @@ export default function PlaceAutocomplete({ placeholder, onPlaceSelected }) {
   const handleRecentClick = (place) => {
     setInputValue(place.name);
     onPlaceSelected?.(place);
+    onValueChange?.(place.name);
     addRecentSearch(place);
     inputRef.current?.blur();
   };
@@ -203,6 +219,7 @@ export default function PlaceAutocomplete({ placeholder, onPlaceSelected }) {
             setInputValue('');
             setPredictions([]);
             onPlaceSelected?.(null);
+            onValueChange?.('');
           }}
           className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
         >
