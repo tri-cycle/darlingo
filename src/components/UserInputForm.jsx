@@ -40,7 +40,9 @@ const SwapIcon = () => (
 
 export default function UserInputForm() {
   const {
+    startLocation,
     setStartLocation,
+    endLocation,
     setEndLocation,
     waypoints,
     addWaypoint,
@@ -54,7 +56,10 @@ export default function UserInputForm() {
       {/* 출발지 */}
       <div>
         <label className="block mb-1 font-medium">출발지</label>
-        <PlaceAutocomplete onPlaceSelected={setStartLocation} />
+        <PlaceAutocomplete
+          value={startLocation?.name}
+          onPlaceSelected={setStartLocation}
+        />
       </div>
 
       {/* 경유지 목록 */}
@@ -78,7 +83,10 @@ export default function UserInputForm() {
       {/* 도착지 */}
       <div>
         <label className="block mb-1 font-medium">도착지</label>
-        <PlaceAutocomplete onPlaceSelected={setEndLocation} />
+        <PlaceAutocomplete
+          value={endLocation?.name}
+          onPlaceSelected={setEndLocation}
+        />
       </div>
 
       {/* 경유지 추가 및 위치 교환 버튼 */}
