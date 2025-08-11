@@ -21,7 +21,10 @@ export default function MapView({ center, onMapLoad, className = "" }) {
 
   useEffect(() => {
     // center 또는 naver 미정의 시 지도 생성 스킵
-    if (!window.naver || !mapRef.current || !center) return;
+    if (!mapRef.current || !center) return;
+
+    // Naver Maps API 로드 확인
+    if (!window.naver || !window.naver.maps) return;
 
     // 기존 맵 지우기
     mapRef.current.innerHTML = "";
@@ -30,10 +33,8 @@ export default function MapView({ center, onMapLoad, className = "" }) {
       center: new window.naver.maps.LatLng(center.lat, center.lng),
     });
 
-    map.addControl(
-      new window.naver.maps.ZoomControl(),
-      window.naver.maps.Position.RIGHT_BOTTOM
-    );
+    const zoomControl = new window.naver.maps.ZoomControl();
+    map.controls[window.naver.maps.Position.RIGHT_BOTTOM].push(zoomControl);
 
     mapInstanceRef.current = map;
 
