@@ -144,63 +144,187 @@ export default function IntegratedRoute({
             (async () => {
                 try {
                     const points = [start, ...viaPoints, end];
-                    let mergedSegments = [];
-                    let mergedSubPaths = [];
-                    let totalTime = 0;
+
+                    // ODsay 전체 경로 후보
+                    let odsaySegments = [];
+                    let odsaySubPaths = [];
+                    let odsayTime = 0;
+
+                    // 자전거 전용 경로 후보
+                    let bikeSegments = [];
+                    let bikeSubPaths = [];
+                    let bikeTimeTotal = 0;
+                    let bikePossible = bikeTimeSec > 0 && stations.length > 0;
+
                     for (let i = 0; i < points.length - 1; i++) {
                         const s = points[i];
                         const e = points[i + 1];
+
+                        // 📍 ODsay 경로 계산
                         const res = await fetchOdsayRoute({ y: s.lat, x: s.lng }, { y: e.lat, x: e.lng });
                         const path = res?.result?.path?.[0];
-                        if (!path) continue;
-                        const segs = await processOdsayPath(path, s, e);
-                        mergedSegments = mergedSegments.concat(segs);
-                        const subPaths = path.subPath || [];
-                        mergedSubPaths = mergedSubPaths.concat(subPaths);
-                        totalTime += getTotalTime(path, subPaths);
+                        if (path) {
+                            const segs = await processOdsayPath(path, s, e);
+                            odsaySegments = odsaySegments.concat(segs);
+                            const subPaths = path.subPath || [];
+                            odsaySubPaths = odsaySubPaths.concat(subPaths);
+                            odsayTime += getTotalTime(path, subPaths);
+                        }
 
-                        // 각 구간에 따릉이 경로 추가
-                        if (bikeTimeSec > 0 && stations.length > 0) {
+                        // 🚲 자전거 전용 경로 계산
+                        if (bikePossible) {
                             const startStation = findNearestStation(s, stations);
                             const endStation = findNearestStation(e, stations);
-                            if (startStation && endStation) {
+                            if (!startStation || !endStation) {
+                                bikePossible = false;
+                            } else {
+                                // 시작 지점까지 도보
+                                const walkStartCoords = await fetchTmapRoute(
+                                    s,
+                                    { lat: +startStation.stationLatitude, lng: +startStation.stationLongitude }
+                                );
+                                const walkStartDist = Math.round(
+                                    haversine(
+                                        s.lat,
+                                        s.lng,
+                                        +startStation.stationLatitude,
+                                        +startStation.stationLongitude
+                                    )
+                                );
+                                const walkStartTime = Math.max(1, Math.round(walkStartDist / 80));
+                                const walkStartSub = { trafficType: 3, distance: walkStartDist, sectionTime: walkStartTime };
+                                const walkStartSeg = {
+                                    ...walkStartSub,
+                                    type: "walk",
+                                    color: ROUTE_COLORS.WALK,
+                                    coords: walkStartCoords,
+                                };
+
+                                // 자전거 구간
                                 const { segment1, segment2 } = await fetchTimedBikeSegments(
                                     startStation,
                                     endStation,
                                     stations,
-                                    bikeTimeSec,
+                                    bikeTimeSec
                                 );
                                 const coords1 = polyline.decode(segment1.routes[0].geometry, 5);
                                 const coords2 = polyline.decode(segment2.routes[0].geometry, 5);
                                 const bikePath = [...coords1, ...coords2.slice(1)].map(
-                                    ([lat, lng]) => new window.naver.maps.LatLng(lat, lng),
+                                    ([lat, lng]) => new window.naver.maps.LatLng(lat, lng)
                                 );
                                 const bikeDist =
                                     segment1.routes[0].summary.distance +
                                     segment2.routes[0].summary.distance;
                                 const FIXED_BIKE_SPEED_KMPH = 13;
                                 const bikeSec = (bikeDist / 1000) / FIXED_BIKE_SPEED_KMPH * 3600;
-                                mergedSegments.push({
-                                    type: "bike",
-                                    color: ROUTE_COLORS.BIKE,
-                                    coords: bikePath,
-                                });
-                                mergedSubPaths.push({
+                                const bikeSub = {
                                     trafficType: 4,
                                     laneColor: ROUTE_COLORS.BIKE,
-                                    startName: startStation.stationName.replace(/^\d+\.\s*/, ''),
-                                    endName: endStation.stationName.replace(/^\d+\.\s*/, ''),
+                                    startName: startStation.stationName.replace(/^\d+\.\s*/, ""),
+                                    endName: endStation.stationName.replace(/^\d+\.\s*/, ""),
                                     sectionTime: Math.round(bikeSec / 60),
                                     distance: bikeDist,
                                     avgSpeed: FIXED_BIKE_SPEED_KMPH,
-                                });
-                                totalTime += Math.round(bikeSec / 60);
+                                };
+                                const bikeSeg = {
+                                    type: "bike",
+                                    color: ROUTE_COLORS.BIKE,
+                                    coords: bikePath,
+                                };
+
+                                // 도착 지점까지 도보
+                                const walkEndCoords = await fetchTmapRoute(
+                                    { lat: +endStation.stationLatitude, lng: +endStation.stationLongitude },
+                                    e
+                                );
+                                const walkEndDist = Math.round(
+                                    haversine(
+                                        +endStation.stationLatitude,
+                                        +endStation.stationLongitude,
+                                        e.lat,
+                                        e.lng
+                                    )
+                                );
+                                const walkEndTime = Math.max(1, Math.round(walkEndDist / 80));
+                                const walkEndSub = { trafficType: 3, distance: walkEndDist, sectionTime: walkEndTime };
+                                const walkEndSeg = {
+                                    ...walkEndSub,
+                                    type: "walk",
+                                    color: ROUTE_COLORS.WALK,
+                                    coords: walkEndCoords,
+                                };
+
+                                bikeSegments = bikeSegments.concat([
+                                    walkStartSeg,
+                                    bikeSeg,
+                                    walkEndSeg,
+                                ]);
+                                bikeSubPaths = bikeSubPaths.concat([
+                                    walkStartSub,
+                                    bikeSub,
+                                    walkEndSub,
+                                ]);
+                                bikeTimeTotal +=
+                                    walkStartTime + Math.round(bikeSec / 60) + walkEndTime;
                             }
                         }
                     }
-                    const summary = { info: { totalTime }, subPath: mergedSubPaths };
-                    addNames(summary);
-                    setRoutes([{ segments: mergedSegments, summary }]);
+
+                    const candidates = [];
+                    if (odsaySegments.length > 0) {
+                        const summary = { info: { totalTime: odsayTime }, subPath: odsaySubPaths };
+                        addNames(summary);
+                        candidates.push({ segments: odsaySegments, summary });
+                    }
+                    if (bikePossible && bikeSegments.length > 0) {
+                        const summaryBike = { info: { totalTime: bikeTimeTotal }, subPath: bikeSubPaths };
+                        addNames(summaryBike);
+                        candidates.push({ segments: bikeSegments, summary: summaryBike });
+                    }
+
+                    // 중복 제거
+                    const unique = [];
+                    const seen = new Set();
+                    for (const r of candidates) {
+                        const key = JSON.stringify(r.summary);
+                        if (seen.has(key)) continue;
+                        seen.add(key);
+                        unique.push(r);
+                    }
+
+                    // 정렬 로직 재사용
+                    function calcWalkTime(summary) {
+                        if (!summary || !summary.subPath) return Infinity;
+                        return summary.subPath.reduce(
+                            (acc, sp) => (sp.trafficType === 3 ? acc + (sp.sectionTime || 0) : acc),
+                            0
+                        );
+                    }
+                    function calcBikeTime(summary) {
+                        if (!summary || !summary.subPath) return Infinity;
+                        return summary.subPath.reduce(
+                            (acc, sp) => (sp.trafficType === 4 ? acc + (sp.sectionTime || 0) : acc),
+                            0
+                        );
+                    }
+
+                    const sorted = unique.sort((a, b) => {
+                        const aWalk = calcWalkTime(a.summary);
+                        const bWalk = calcWalkTime(b.summary);
+                        if (aWalk >= 60 && bWalk >= 60) {
+                            const aBike = calcBikeTime(a.summary);
+                            const bBike = calcBikeTime(b.summary);
+                            return aBike - bBike;
+                        }
+                        if (aWalk >= 60) return 1;
+                        if (bWalk >= 60) return -1;
+                        const aBike = calcBikeTime(a.summary);
+                        const bBike = calcBikeTime(b.summary);
+                        if (aBike !== bBike) return aBike - bBike;
+                        return aWalk - bWalk;
+                    });
+
+                    setRoutes(sorted);
                 } catch (err) {
                     console.error(err);
                 } finally {
