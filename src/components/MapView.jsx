@@ -2,7 +2,7 @@
 import React, { useEffect, useRef } from "react";
 import useCurrentLocation from "../hooks/useCurrentLocation";
 
-export default function MapView({ center, onMapLoad, className = "" }) {
+export default function MapView({ center, onMapLoad, onMapClick, className = "" }) {
   const { location, error } = useCurrentLocation();
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -100,9 +100,16 @@ export default function MapView({ center, onMapLoad, className = "" }) {
 
     mapInstanceRef.current = map;
 
+    // 지도 클릭 이벤트 리스너 등록
+    if (onMapClick) {
+      window.naver.maps.Event.addListener(map, "click", (e) => {
+        onMapClick({ lat: e.coord.lat(), lng: e.coord.lng() });
+      });
+    }
+
     // 부모에 인스턴스 전달
     onMapLoad?.(map);
-  }, [effectiveCenter, onMapLoad]);
+  }, [effectiveCenter, onMapLoad, onMapClick]);
 
   return (
     <div className={className} style={{ position: "relative" }}>
