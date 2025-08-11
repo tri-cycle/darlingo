@@ -63,6 +63,14 @@ export default function App() {
   }, [locationError]);
 
   useEffect(() => {
+    if (startLocation) {
+      setStatsCenter(startLocation);
+    } else {
+      setStatsCenter(mapCenter);
+    }
+  }, [startLocation, mapCenter]);
+
+  useEffect(() => {
     if (!mapInstance) return;
     const timer = setTimeout(() => {
       naver.maps.Event.trigger(mapInstance, "resize");
