@@ -1,0 +1,1 @@
+export const NEARBY_RADIUS_METERS = 100;
