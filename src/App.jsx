@@ -5,6 +5,7 @@ import React, {
   useState,
   useCallback,
 } from "react";
+import useCurrentLocation from "./hooks/useCurrentLocation";
 import UserInputForm from "./components/UserInputForm";
 import MapLoader from "./components/MapLoader";
 import MapView from "./components/MapView";
@@ -18,7 +19,14 @@ import RouteList from "./components/RouteList";
 const defaultCenter = { lat: 37.5866169, lng: 127.097436 };
 
 export default function App() {
-  const { startLocation, endLocation, waypoints } = useContext(RouteContext);
+  const {
+    startLocation,
+    endLocation,
+    waypoints,
+    setStartLocation,
+  } = useContext(RouteContext);
+
+  const { location: userLocation, error: locationError } = useCurrentLocation();
 
   const [bikeTimeSec, setBikeTimeSec] = useState(900);
   const [mapInstance, setMapInstance] = useState(null);
@@ -30,6 +38,21 @@ export default function App() {
   const [isCalculating, setIsCalculating] = useState(false);
   const [mapCenter, setMapCenter] = useState(defaultCenter);
   const [isMapCentered, setIsMapCentered] = useState(false);
+
+  useEffect(() => {
+    if (userLocation) {
+      setMapCenter(userLocation);
+      if (!startLocation) {
+        setStartLocation(userLocation);
+      }
+    }
+  }, [userLocation, startLocation, setStartLocation]);
+
+  useEffect(() => {
+    if (locationError) {
+      console.error(locationError);
+    }
+  }, [locationError]);
 
   useEffect(() => {
     if (!mapInstance) return;
