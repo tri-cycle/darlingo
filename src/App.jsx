@@ -15,6 +15,8 @@ import { RouteContext } from "./context/RouteContext";
 import { fetchAllStations } from "./utils/fetchAllStations";
 import RouteSummary from "./components/RouteSummary";
 import RouteList from "./components/RouteList";
+import haversine from "./utils/haversine";
+import { NEARBY_RADIUS_METERS } from "./utils/constants";
 
 const defaultCenter = { lat: 37.5866169, lng: 127.097436 };
 
@@ -38,10 +40,16 @@ export default function App() {
   const [isCalculating, setIsCalculating] = useState(false);
   const [mapCenter, setMapCenter] = useState(defaultCenter);
   const [isMapCentered, setIsMapCentered] = useState(false);
+  const [nearbyStats, setNearbyStats] = useState({
+    stationCount: 0,
+    bikeCount: 0,
+  });
+  const [statsCenter, setStatsCenter] = useState(null);
 
   useEffect(() => {
     if (userLocation) {
       setMapCenter(userLocation);
+      setStatsCenter(userLocation);
       if (!startLocation) {
         setStartLocation(userLocation);
       }
@@ -73,6 +81,28 @@ export default function App() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (!statsCenter || stations.length === 0) return;
+
+    const nearby = stations.filter((s) => {
+      const dist = haversine(
+        statsCenter.lat,
+        statsCenter.lng,
+        +s.stationLatitude,
+        +s.stationLongitude
+      );
+      return dist <= NEARBY_RADIUS_METERS;
+    });
+
+    const stationCount = nearby.length;
+    const bikeCount = nearby.reduce(
+      (sum, s) => sum + Number(s.parkingBikeTotCnt),
+      0
+    );
+
+    setNearbyStats({ stationCount, bikeCount });
+  }, [statsCenter, stations]);
 
   // 출발지 또는 도착지가 처음 설정될 때 지도 중심을 이동시킵니다.
   useEffect(() => {
@@ -129,6 +159,9 @@ export default function App() {
           ✕
         </button>
 
+        <p className="text-lg mb-4">
+          근처 대여소 {nearbyStats.stationCount}곳 / 자전거 {nearbyStats.bikeCount}대
+        </p>
         <h1 className="text-3xl font-bold mb-6">따릉이:Go</h1>
 
         <UserInputForm />
