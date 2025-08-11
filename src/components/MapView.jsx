@@ -34,7 +34,21 @@ export default function MapView({ center, onMapLoad, className = "" }) {
     });
 
     const zoomControl = new window.naver.maps.ZoomControl();
-    map.controls[window.naver.maps.Position.RIGHT_BOTTOM].push(zoomControl);
+    const position = window.naver.maps.Position.RIGHT_BOTTOM;
+
+    const addZoomControl = () => {
+      if (map.controls && map.controls[position]) {
+        map.controls[position].push(zoomControl);
+      } else {
+        map.addControl(zoomControl, position);
+      }
+    };
+
+    if (map.controls && map.controls[position]) {
+      addZoomControl();
+    } else {
+      window.naver.maps.Event.once(map, "init", addZoomControl);
+    }
 
     mapInstanceRef.current = map;
 
