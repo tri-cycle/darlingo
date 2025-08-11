@@ -104,6 +104,16 @@ function getTotalTime(path, subPaths) {
     return (subPaths || []).reduce((sum, sp) => sum + (sp.sectionTime || 0), 0);
 }
 
+// 실제 지점 간의 도보 경로를 계산하여 세그먼트와 subPath 정보를 생성합니다.
+async function createWalkSegment(from, to) {
+    const coords = await fetchTmapRoute(from, to);
+    const distance = Math.round(haversine(from.lat, from.lng, to.lat, to.lng));
+    const sectionTime = Math.max(1, Math.round(distance / 80));
+    const subPath = { trafficType: 3, distance, sectionTime };
+    const segment = { ...subPath, type: 'walk', color: ROUTE_COLORS.WALK, coords };
+    return { segment, subPath };
+}
+
 
 export default function IntegratedRoute({
     mapInstance,
@@ -178,27 +188,14 @@ export default function IntegratedRoute({
                             if (!startStation || !endStation) {
                                 bikePossible = false;
                             } else {
-                                // 시작 지점까지 도보
-                                const walkStartCoords = await fetchTmapRoute(
+                                // 시작 지점까지 도보 세그먼트 생성
+                                const { segment: walkStartSeg, subPath: walkStartSub } = await createWalkSegment(
                                     s,
-                                    { lat: +startStation.stationLatitude, lng: +startStation.stationLongitude }
+                                    {
+                                        lat: +startStation.stationLatitude,
+                                        lng: +startStation.stationLongitude,
+                                    }
                                 );
-                                const walkStartDist = Math.round(
-                                    haversine(
-                                        s.lat,
-                                        s.lng,
-                                        +startStation.stationLatitude,
-                                        +startStation.stationLongitude
-                                    )
-                                );
-                                const walkStartTime = Math.max(1, Math.round(walkStartDist / 80));
-                                const walkStartSub = { trafficType: 3, distance: walkStartDist, sectionTime: walkStartTime };
-                                const walkStartSeg = {
-                                    ...walkStartSub,
-                                    type: "walk",
-                                    color: ROUTE_COLORS.WALK,
-                                    coords: walkStartCoords,
-                                };
 
                                 // 자전거 구간
                                 const { segment1, segment2 } = await fetchTimedBikeSegments(
@@ -232,40 +229,21 @@ export default function IntegratedRoute({
                                     coords: bikePath,
                                 };
 
-                                // 도착 지점까지 도보
-                                const walkEndCoords = await fetchTmapRoute(
-                                    { lat: +endStation.stationLatitude, lng: +endStation.stationLongitude },
+                                // 도착 지점까지 도보 세그먼트 생성
+                                const { segment: walkEndSeg, subPath: walkEndSub } = await createWalkSegment(
+                                    {
+                                        lat: +endStation.stationLatitude,
+                                        lng: +endStation.stationLongitude,
+                                    },
                                     e
                                 );
-                                const walkEndDist = Math.round(
-                                    haversine(
-                                        +endStation.stationLatitude,
-                                        +endStation.stationLongitude,
-                                        e.lat,
-                                        e.lng
-                                    )
-                                );
-                                const walkEndTime = Math.max(1, Math.round(walkEndDist / 80));
-                                const walkEndSub = { trafficType: 3, distance: walkEndDist, sectionTime: walkEndTime };
-                                const walkEndSeg = {
-                                    ...walkEndSub,
-                                    type: "walk",
-                                    color: ROUTE_COLORS.WALK,
-                                    coords: walkEndCoords,
-                                };
 
-                                bikeSegments = bikeSegments.concat([
-                                    walkStartSeg,
-                                    bikeSeg,
-                                    walkEndSeg,
-                                ]);
-                                bikeSubPaths = bikeSubPaths.concat([
-                                    walkStartSub,
-                                    bikeSub,
-                                    walkEndSub,
-                                ]);
+                                bikeSegments = bikeSegments.concat([walkStartSeg, bikeSeg, walkEndSeg]);
+                                bikeSubPaths = bikeSubPaths.concat([walkStartSub, bikeSub, walkEndSub]);
                                 bikeTimeTotal +=
-                                    walkStartTime + Math.round(bikeSec / 60) + walkEndTime;
+                                    walkStartSub.sectionTime +
+                                    bikeSub.sectionTime +
+                                    walkEndSub.sectionTime;
                             }
                         }
                     }
