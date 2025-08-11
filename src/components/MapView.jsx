@@ -1,9 +1,12 @@
 // src/components/MapView.jsx
 import React, { useEffect, useRef } from "react";
+import useCurrentLocation from "../hooks/useCurrentLocation";
 
 export default function MapView({ center, onMapLoad, className = "" }) {
+  const { location, error } = useCurrentLocation();
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
+  const effectiveCenter = center || location;
 
   const handleZoomIn = () => {
     const map = mapInstanceRef.current;
@@ -21,7 +24,7 @@ export default function MapView({ center, onMapLoad, className = "" }) {
 
   useEffect(() => {
     // center 또는 naver 미정의 시 지도 생성 스킵
-    if (!mapRef.current || !center) return;
+    if (!mapRef.current || !effectiveCenter) return;
 
     // Naver Maps API 로드 확인
     if (!window.naver || !window.naver.maps) return;
@@ -30,7 +33,10 @@ export default function MapView({ center, onMapLoad, className = "" }) {
     mapRef.current.innerHTML = "";
 
     const map = new window.naver.maps.Map(mapRef.current, {
-      center: new window.naver.maps.LatLng(center.lat, center.lng),
+      center: new window.naver.maps.LatLng(
+        effectiveCenter.lat,
+        effectiveCenter.lng
+      ),
     });
 
     const zoomControl = new window.naver.maps.ZoomControl();
@@ -54,11 +60,16 @@ export default function MapView({ center, onMapLoad, className = "" }) {
 
     // 부모에 인스턴스 전달
     onMapLoad?.(map);
-  }, [center, onMapLoad]);
+  }, [effectiveCenter, onMapLoad]);
 
   return (
     <div className={className} style={{ position: "relative" }}>
       <div ref={mapRef} className="w-full h-full" />
+      {error && (
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-white p-2 text-red-600 rounded shadow">
+          {error}
+        </div>
+      )}
       <div className="absolute top-2 left-2 flex flex-col space-y-1">
         <button
           type="button"
