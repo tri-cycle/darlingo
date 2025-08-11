@@ -109,6 +109,7 @@ export default function IntegratedRoute({
     mapInstance,
     start,
     end,
+    waypoints = [],
     stations,
     bikeTimeSec,
     routes,
@@ -136,6 +137,38 @@ export default function IntegratedRoute({
                     summary.subPath[lastIndex].endName = end.name;
                 }
             }
+        }
+
+        const viaPoints = waypoints.filter(Boolean);
+        if (viaPoints.length > 0) {
+            (async () => {
+                try {
+                    const points = [start, ...viaPoints, end];
+                    let mergedSegments = [];
+                    let mergedSubPaths = [];
+                    let totalTime = 0;
+                    for (let i = 0; i < points.length - 1; i++) {
+                        const s = points[i];
+                        const e = points[i + 1];
+                        const res = await fetchOdsayRoute({ y: s.lat, x: s.lng }, { y: e.lat, x: e.lng });
+                        const path = res?.result?.path?.[0];
+                        if (!path) continue;
+                        const segs = await processOdsayPath(path, s, e);
+                        mergedSegments = mergedSegments.concat(segs);
+                        const subPaths = path.subPath || [];
+                        mergedSubPaths = mergedSubPaths.concat(subPaths);
+                        totalTime += getTotalTime(path, subPaths);
+                    }
+                    const summary = { info: { totalTime }, subPath: mergedSubPaths };
+                    addNames(summary);
+                    setRoutes([{ segments: mergedSegments, summary }]);
+                } catch (err) {
+                    console.error(err);
+                } finally {
+                    setIsCalculating(false);
+                }
+            })();
+            return;
         }
 
         const calculateRoutes = async () => {
@@ -534,7 +567,7 @@ export default function IntegratedRoute({
                 setIsCalculating(false);
             }
         })();
-    }, [mapInstance, start, end, stations, bikeTimeSec, setRoutes, setIsCalculating]);
+    }, [mapInstance, start, end, waypoints, stations, bikeTimeSec, setRoutes, setIsCalculating]);
 
     const currentSegments = routes[selectedIndex]?.segments || [];
 

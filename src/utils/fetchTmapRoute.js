@@ -2,9 +2,10 @@
  * TMAP 보행자 경로안내 API를 호출하여 경로 데이터를 가져옵니다.
  * @param {object} start - 출발지 좌표 객체 {lat, lng}
  * @param {object} end - 도착지 좌표 객체 {lat, lng}
+ * @param {Array} vias - 경유지 배열 [{lat, lng}, ...]
  * @returns {Promise<Array>} 네이버 지도 LatLng 객체로 변환된 좌표 배열
  */
-export async function fetchTmapRoute(start, end) {
+export async function fetchTmapRoute(start, end, vias = []) {
   const apiKey = import.meta.env.VITE_TMAP_API_KEY;
   const url = "https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1";
 
@@ -41,7 +42,10 @@ export async function fetchTmapRoute(start, end) {
         startName: "출발지",
         endName: "도착지",
         reqCoordType: "WGS84GEO",
-        resCoordType: "WGS84GEO"
+        resCoordType: "WGS84GEO",
+        ...(vias.length > 0 && {
+          passList: vias.map(v => `${v.lng},${v.lat}`).join("_"),
+        }),
       }),
     });
 
