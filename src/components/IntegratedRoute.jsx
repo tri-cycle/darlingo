@@ -114,11 +114,15 @@ export default function IntegratedRoute({
     routes,
     selectedIndex,
     setRoutes,
+    setIsCalculating,
 }) {
 
     useEffect(() => {
         if (!mapInstance || !start || !end) return;
-        if (bikeTimeSec > 0 && stations.length === 0) return;
+        if (bikeTimeSec > 0 && stations.length === 0) {
+            setIsCalculating(false);
+            return;
+        }
 
         function addNames(summary) {
             if (summary && summary.subPath && summary.subPath.length > 0) {
@@ -521,8 +525,16 @@ export default function IntegratedRoute({
             return null;
         }
 
-        calculateRoutes();
-    }, [mapInstance, start, end, stations, bikeTimeSec, setRoutes]);
+        (async () => {
+            try {
+                await calculateRoutes();
+            } catch (error) {
+                console.error(error);
+            } finally {
+                setIsCalculating(false);
+            }
+        })();
+    }, [mapInstance, start, end, stations, bikeTimeSec, setRoutes, setIsCalculating]);
 
     const currentSegments = routes[selectedIndex]?.segments || [];
 
