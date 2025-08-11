@@ -18,7 +18,7 @@ import RouteList from "./components/RouteList";
 const defaultCenter = { lat: 37.5866169, lng: 127.097436 };
 
 export default function App() {
-  const { startLocation, endLocation } = useContext(RouteContext);
+  const { startLocation, endLocation, waypoints } = useContext(RouteContext);
 
   const [bikeTimeSec, setBikeTimeSec] = useState(900);
   const [mapInstance, setMapInstance] = useState(null);
@@ -49,12 +49,12 @@ export default function App() {
     })();
   }, []);
 
-  // 출발지나 도착지가 변경되면 기존 경로 정보를 초기화합니다.
+  // 출발지·도착지·경유지가 변경되면 기존 경로 정보를 초기화합니다.
   useEffect(() => {
     setShowRoute(false);
     setRoutes([]);
     setSelectedRouteIndex(0);
-  }, [startLocation, endLocation]);
+  }, [startLocation, endLocation, waypoints]);
 
   const handleMapLoad = useCallback((map) => setMapInstance(map), []);
 
@@ -175,6 +175,7 @@ export default function App() {
               mapInstance={mapInstance}
               start={startLocation}
               end={endLocation}
+              waypoints={waypoints}
               stations={stations}
               bikeTimeSec={bikeTimeSec}
               routes={routes}
