@@ -63,11 +63,23 @@ export default function App() {
   }, [locationError]);
 
   useEffect(() => {
-    if (startLocation) {
-      setStatsCenter(startLocation);
-    } else {
-      setStatsCenter(mapCenter);
-    }
+    console.log("[startLocation,mapCenter] startLocation:", startLocation);
+    console.log("[startLocation,mapCenter] mapCenter:", mapCenter);
+    const newCenter = startLocation || mapCenter || null;
+    setStatsCenter((prev) => {
+      console.log("statsCenter before update:", prev);
+      if (
+        prev &&
+        newCenter &&
+        prev.lat === newCenter.lat &&
+        prev.lng === newCenter.lng
+      ) {
+        console.log("statsCenter unchanged");
+        return prev;
+      }
+      console.log("statsCenter after update:", newCenter);
+      return newCenter;
+    });
   }, [startLocation, mapCenter]);
 
   useEffect(() => {
@@ -92,22 +104,30 @@ export default function App() {
 
   useEffect(() => {
     if (!statsCenter || stations.length === 0) return;
+    console.log("[statsCenter] changed, recalculating:", statsCenter);
 
-    const nearby = stations.filter((s) => {
-      const dist = haversine(
+    const distances = stations.map((s) => ({
+      ...s,
+      dist: haversine(
         statsCenter.lat,
         statsCenter.lng,
         +s.stationLatitude,
         +s.stationLongitude
-      );
-      return dist <= NEARBY_RADIUS_METERS;
-    });
+      ),
+    }));
+    console.log(
+      "Distance list:",
+      distances.map((s) => s.dist)
+    );
+
+    const nearby = distances.filter((s) => s.dist <= NEARBY_RADIUS_METERS);
 
     const stationCount = nearby.length;
     const bikeCount = nearby.reduce(
       (sum, s) => sum + Number(s.parkingBikeTotCnt),
       0
     );
+    console.log("Calculated stats:", { stationCount, bikeCount });
 
     setNearbyStats({ stationCount, bikeCount });
   }, [statsCenter, stations]);
