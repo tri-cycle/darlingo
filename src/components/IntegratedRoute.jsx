@@ -323,7 +323,7 @@ export default function IntegratedRoute({
                                 laneColor: ROUTE_COLORS.BIKE,
                                 startName: startStation.stationName.replace(/^\d+\.\s*/, ""),
                                 endName: endStation.stationName.replace(/^\d+\.\s*/, ""),
-                                sectionTime: Math.round(segTimeSec / 60),
+                                sectionTime: Math.max(1, Math.round(segTimeSec / 60)),
                                 distance: segDist,
                                 avgSpeed: FIXED_BIKE_SPEED_KMPH,
                             });
@@ -333,11 +333,16 @@ export default function IntegratedRoute({
                                 const scale = bikeTimeSec / bikeTimeTotal;
                                 bikeTimeTotal = bikeTimeSec;
                                 subPathBike.forEach((sp) => {
-                                    sp.sectionTime = Math.round(sp.sectionTime * scale);
+                                    sp.sectionTime = Math.max(1, Math.round(sp.sectionTime * scale));
                                 });
                             }
                             const summaryBike = {
-                                info: { totalTime: Math.round(bikeTimeTotal / 60) },
+                                info: {
+                                    totalTime: Math.max(
+                                        Math.round(bikeTimeTotal / 60),
+                                        Math.round(bikeTimeSec / 60)
+                                    ),
+                                },
                                 subPath: subPathBike,
                             };
                             candidates.push({ segments: bikeSegments, summary: summaryBike });
@@ -547,17 +552,18 @@ export default function IntegratedRoute({
             
             console.log("📍 API가 반환한 값:", segment1.routes[0].summary);
             
-            const bikeDist = segment1.routes[0].summary.distance; 
+            const bikeDist = segment1.routes[0].summary.distance;
             const FIXED_BIKE_SPEED_KMPH = 13; // ◀️◀️ 여기를 13으로 수정
             const newBikeSec = (bikeDist / 1000) / FIXED_BIKE_SPEED_KMPH * 3600;
+            const bikeTimeMin = Math.max(1, Math.round(newBikeSec / 60));
 
-            const bikeSubPath = { 
-                trafficType: 4, 
-                laneColor: ROUTE_COLORS.BIKE, 
-                startName: startStation.stationName.replace(/^\d+\.\s*/, ''), 
-                endName: transferStation.stationName.replace(/^\d+\.\s*/, ''), 
-                sectionTime: Math.round(newBikeSec / 60),
-                distance: bikeDist, 
+            const bikeSubPath = {
+                trafficType: 4,
+                laneColor: ROUTE_COLORS.BIKE,
+                startName: startStation.stationName.replace(/^\d+\.\s*/, ''),
+                endName: transferStation.stationName.replace(/^\d+\.\s*/, ''),
+                sectionTime: bikeTimeMin,
+                distance: bikeDist,
                 avgSpeed: FIXED_BIKE_SPEED_KMPH,
             };
             
@@ -591,7 +597,10 @@ export default function IntegratedRoute({
 
             const combinedSubPath = [...startSubPaths, bikeSubPath, ...endSubPaths];
             const segments = [...startSegments, bikeSegment, ...endSegments];
-            const summaryTime = getTotalTime(startPath, startSubPaths) + Math.round(newBikeSec / 60) + getTotalTime(endPath, endSubPaths);
+            const summaryTime =
+                getTotalTime(startPath, startSubPaths) +
+                bikeTimeMin +
+                getTotalTime(endPath, endSubPaths);
             const summary = { info: { totalTime: summaryTime }, subPath: combinedSubPath };
             addNames(summary);
             return { segments, summary };
@@ -637,13 +646,14 @@ export default function IntegratedRoute({
             const bikeDist = segment1.routes[0].summary.distance;
             const FIXED_BIKE_SPEED_KMPH = 13; // ◀️◀️ 여기를 13으로 수정
             const newBikeSec = (bikeDist / 1000) / FIXED_BIKE_SPEED_KMPH * 3600;
+            const bikeTimeMin = Math.max(1, Math.round(newBikeSec / 60));
 
-            const bikeSubPath = { 
-                trafficType: 4, 
-                laneColor: ROUTE_COLORS.BIKE, 
-                startName: transferStation.stationName.replace(/^\d+\.\s*/, ''), 
-                endName: endStation.stationName.replace(/^\d+\.\s*/, ''), 
-                sectionTime: Math.round(newBikeSec / 60),
+            const bikeSubPath = {
+                trafficType: 4,
+                laneColor: ROUTE_COLORS.BIKE,
+                startName: transferStation.stationName.replace(/^\d+\.\s*/, ''),
+                endName: endStation.stationName.replace(/^\d+\.\s*/, ''),
+                sectionTime: bikeTimeMin,
                 distance: bikeDist,
                 avgSpeed: FIXED_BIKE_SPEED_KMPH
             };
@@ -680,7 +690,10 @@ export default function IntegratedRoute({
 
             const combinedSubPath = [...startSubPaths, bikeSubPath, ...endSubPaths];
             const segments = [...startSegments, bikeSegment, ...endSegments];
-            const summaryTime = getTotalTime(startPath, startSubPaths) + Math.round(newBikeSec / 60) + getTotalTime(endPath, endSubPaths);
+            const summaryTime =
+                getTotalTime(startPath, startSubPaths) +
+                bikeTimeMin +
+                getTotalTime(endPath, endSubPaths);
             const summary = { info: { totalTime: summaryTime }, subPath: combinedSubPath };
             addNames(summary);
             return { segments, summary };
@@ -717,6 +730,7 @@ export default function IntegratedRoute({
             const bikeDist = segment1.routes[0].summary.distance + segment2.routes[0].summary.distance;
             const FIXED_BIKE_SPEED_KMPH = 13;
             const newBikeSec = (bikeDist / 1000) / FIXED_BIKE_SPEED_KMPH * 3600;
+            const bikeTimeMin = Math.max(1, Math.round(newBikeSec / 60));
 
             const coords1 = polyline.decode(segment1.routes[0].geometry, 5);
             const coords2 = polyline.decode(segment2.routes[0].geometry, 5);
@@ -728,7 +742,7 @@ export default function IntegratedRoute({
                 laneColor: ROUTE_COLORS.BIKE,
                 startName: startStation.stationName.replace(/^\d+\.\s*/, ''),
                 endName: endStation.stationName.replace(/^\d+\.\s*/, ''),
-                sectionTime: Math.round(newBikeSec / 60),
+                sectionTime: bikeTimeMin,
                 distance: bikeDist,
                 avgSpeed: FIXED_BIKE_SPEED_KMPH,
             };
@@ -752,7 +766,10 @@ export default function IntegratedRoute({
 
             const combinedSubPath = [...startSubPaths, bikeSubPath, ...endSubPaths];
             const segments = [...startSegments, bikeSegment, ...endSegments];
-            const summaryTime = getTotalTime(startPath, startSubPaths) + Math.round(newBikeSec / 60) + getTotalTime(endPath, endSubPaths);
+            const summaryTime =
+                getTotalTime(startPath, startSubPaths) +
+                bikeTimeMin +
+                getTotalTime(endPath, endSubPaths);
             const summary = { info: { totalTime: summaryTime }, subPath: combinedSubPath };
             addNames(summary);
             return { segments, summary };
