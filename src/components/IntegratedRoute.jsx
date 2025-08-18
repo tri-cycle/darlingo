@@ -4,6 +4,7 @@ import React, { useEffect, useMemo } from "react";
 import { fetchOdsayRoute } from "../utils/fetchOdsayRoute";
 import { fetchTimedBikeSegments } from "../utils/splitBikeRoute";
 import { fetchTmapRoute } from "../utils/fetchTmapRoute";
+import { fetchBikeRoute } from "../utils/fetchBikeRoute";
 import polyline from "polyline";
 import RouteLine from "./RouteLine";
 import haversine from "../utils/haversine";
@@ -213,6 +214,41 @@ export default function IntegratedRoute({
                     const topEnd = pathsEnd.slice(0, 3);
 
                     const candidates = [];
+
+                    // 🚲 전체 자전거 경로 후보 추가
+                    try {
+                        const bikeCoordsArr = [start, ...viaPoints, end].map((p) => [p.lng, p.lat]);
+                        const bikeData = await fetchBikeRoute(bikeCoordsArr);
+                        const bikeCoords = polyline
+                            .decode(bikeData.routes[0].geometry, 5)
+                            .map(([lat, lng]) => new window.naver.maps.LatLng(lat, lng));
+                        const { distance, duration } = bikeData.routes[0].summary;
+                        const sectionTime = Math.round(duration / 60);
+                        const avgSpeed = (distance / 1000) / (duration / 3600);
+                        const bikeSegment = {
+                            type: "bike",
+                            color: ROUTE_COLORS.BIKE,
+                            coords: bikeCoords,
+                        };
+                        const summaryBike = {
+                            info: { totalTime: sectionTime },
+                            subPath: [
+                                {
+                                    trafficType: 4,
+                                    laneColor: ROUTE_COLORS.BIKE,
+                                    startName: start.name,
+                                    endName: end.name,
+                                    sectionTime,
+                                    distance,
+                                    avgSpeed,
+                                },
+                            ],
+                        };
+                        candidates.push({ segments: [bikeSegment], summary: summaryBike });
+                    } catch (e) {
+                        console.error(e);
+                    }
+
                     for (const p1 of topStart) {
                         for (const p2 of topEnd) {
                             const seg1 = await processOdsayPath(p1, start, viaPoint);
