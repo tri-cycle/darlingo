@@ -9,7 +9,7 @@ export function RouteContextProvider({ children }) {
 
   const addWaypoint = (waypoint) => {
     setWaypoints((prev) => {
-      if (prev.length >= 2) return prev;
+      if (prev.length >= 1) return prev;
       return [...prev, waypoint];
     });
   };

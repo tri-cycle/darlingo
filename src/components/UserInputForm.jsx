@@ -94,7 +94,7 @@ export default function UserInputForm() {
         <button
           type="button"
           onClick={() => addWaypoint(null)}
-          disabled={waypoints.length >= 2}
+          disabled={waypoints.length >= 1}
           className="flex-1 border-2 border-dashed border-gray-300 rounded-md py-2 text-sm text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           경유지 추가
@@ -107,9 +107,9 @@ export default function UserInputForm() {
           <SwapIcon />
         </button>
       </div>
-      {waypoints.length >= 2 && (
+      {waypoints.length >= 1 && (
         <p className="text-xs text-red-500">
-          경유지는 최대 2개까지 추가할 수 있습니다.
+          경유지는 최대 1개까지 추가할 수 있습니다.
         </p>
       )}
 
