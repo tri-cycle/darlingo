@@ -222,6 +222,7 @@ export default function IntegratedRoute({
                             const sStation = findNearestStation(from, stations);
                             const eStation = findNearestStation(to, stations);
                             if (!sStation || !eStation) continue;
+                            if (sStation.stationId === eStation.stationId) continue;
                             const dist = haversine(
                                 +sStation.stationLatitude,
                                 +sStation.stationLongitude,
@@ -238,6 +239,7 @@ export default function IntegratedRoute({
                         let remainingTime = bikeTimeSec;
                         for (let i = 0; i < stationPairs.length; i++) {
                             const { startStation, endStation, dist } = stationPairs[i];
+                            if (startStation.stationId === endStation.stationId) continue;
                             let alloc = Math.round((dist / totalDist) * bikeTimeSec);
                             if (i === stationPairs.length - 1) alloc = remainingTime;
                             remainingTime -= alloc;
@@ -279,7 +281,11 @@ export default function IntegratedRoute({
                         const startStation = findNearestStation(start, stations);
                         const endStation = findNearestStation(end, stations);
 
-                        if (startStation && endStation) {
+                        if (
+                            startStation &&
+                            endStation &&
+                            startStation.stationId !== endStation.stationId
+                        ) {
                             const forward = await fetchTimedBikeSegments(
                                 startStation,
                                 endStation,
@@ -363,7 +369,11 @@ export default function IntegratedRoute({
                     const startStation = findNearestStation(start, stations);
                     const endStation = findNearestStation(end, stations);
 
-                    if (startStation && endStation) {
+                    if (
+                        startStation &&
+                        endStation &&
+                        startStation.stationId !== endStation.stationId
+                    ) {
                         const forward = await fetchTimedBikeSegments(
                             startStation,
                             endStation,
@@ -439,7 +449,12 @@ export default function IntegratedRoute({
         async function createBikeFirst(segment1, transferStation, pathIndex = 0, vias = []) {
             const startStation = findNearestStation(start, stations);
             const endStation = findNearestStation(end, stations);
-            if (!startStation || !endStation) return null;
+            if (
+                !startStation ||
+                !endStation ||
+                startStation.stationId === endStation.stationId
+            )
+                return null;
 
             const resStart = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: +startStation.stationLatitude, x: +startStation.stationLongitude });
             const startPaths = resStart?.result?.path || [];
@@ -520,7 +535,12 @@ export default function IntegratedRoute({
         async function createBikeLast(segment1, transferStation, pathIndex = 0, vias = []) {
             const startStation = findNearestStation(start, stations);
             const endStation = findNearestStation(end, stations);
-            if (!startStation || !endStation) return null;
+            if (
+                !startStation ||
+                !endStation ||
+                startStation.stationId === endStation.stationId
+            )
+                return null;
 
             console.log("--- 🚴 Bike-Last 경로 탐색 시작 ---");
             console.log("➡️ 미리 받아온 값:", {
@@ -602,7 +622,12 @@ export default function IntegratedRoute({
         }
 
         async function createBikeMiddle(startStation, endStation, pathIndex = 0, vias = []) {
-            if (!startStation || !endStation) return null;
+            if (
+                !startStation ||
+                !endStation ||
+                startStation.stationId === endStation.stationId
+            )
+                return null;
 
             const viaCoords = vias.map((v) => ({ x: v.lng, y: v.lat }));
             const resStart = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: +startStation.stationLatitude, x: +startStation.stationLongitude }, viaCoords);
@@ -694,7 +719,12 @@ export default function IntegratedRoute({
                     }
                     const startSt = findNearestStation(prevPoint, stations);
                     const endSt = findNearestStation(nextPoint, stations);
-                    if (startSt && endSt) return { startStation: startSt, endStation: endSt };
+                    if (
+                        startSt &&
+                        endSt &&
+                        startSt.stationId !== endSt.stationId
+                    )
+                        return { startStation: startSt, endStation: endSt };
                     break;
                 }
             }
