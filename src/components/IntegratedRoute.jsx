@@ -135,9 +135,12 @@ function removeDuplicates(list) {
     return unique;
 }
 
-// 기존 정렬 전략 재사용
-function sortCandidates(list) {
-    return list.sort((a, b) => {
+// 기존 정렬 전략 재사용 + 자전거 시간 제한 필터링
+function sortCandidates(list, bikeLimitSec = Infinity) {
+    const filtered = list.filter((r) =>
+        calcBikeTime(r.summary) * 60 <= bikeLimitSec
+    );
+    return filtered.sort((a, b) => {
         const aWalk = calcWalkTime(a.summary);
         const bWalk = calcWalkTime(b.summary);
         if (aWalk >= 60 && bWalk >= 60) {
@@ -196,20 +199,38 @@ export default function IntegratedRoute({
             (async () => {
                 try {
                     const viaPoint = viaPoints[0];
-                    const viaCoord = viaPoint ? { x: viaPoint.lng, y: viaPoint.lat } : null;
-                    const res = await fetchOdsayRoute(
+                    const resStart = await fetchOdsayRoute(
                         { y: start.lat, x: start.lng },
-                        { y: end.lat, x: end.lng },
-                        viaCoord
+                        { y: viaPoint.lat, x: viaPoint.lng }
                     );
-                    const paths = res?.result?.path || [];
-                    const topPaths = paths.slice(0, 3);
+                    const resEnd = await fetchOdsayRoute(
+                        { y: viaPoint.lat, x: viaPoint.lng },
+                        { y: end.lat, x: end.lng }
+                    );
+                    const pathsStart = resStart?.result?.path || [];
+                    const pathsEnd = resEnd?.result?.path || [];
+                    const topStart = pathsStart.slice(0, 3);
+                    const topEnd = pathsEnd.slice(0, 3);
 
                     const candidates = [];
-                    for (const p of topPaths) {
-                        const segments = await processOdsayPath(p, start, end);
-                        addNames(p);
-                        candidates.push({ segments, summary: p });
+                    for (const p1 of topStart) {
+                        for (const p2 of topEnd) {
+                            const seg1 = await processOdsayPath(p1, start, viaPoint);
+                            const seg2 = await processOdsayPath(p2, viaPoint, end);
+                            const summary = {
+                                info: {
+                                    totalTime:
+                                        getTotalTime(p1, p1.subPath) +
+                                        getTotalTime(p2, p2.subPath),
+                                },
+                                subPath: [...(p1.subPath || []), ...(p2.subPath || [])],
+                            };
+                            addNames(summary);
+                            candidates.push({
+                                segments: [...seg1, ...seg2],
+                                summary,
+                            });
+                        }
                     }
 
                     if (bikeTimeSec > 0 && stations.length > 0) {
@@ -272,6 +293,13 @@ export default function IntegratedRoute({
                             });
                         }
                         if (bikeSegments.length > 0) {
+                            if (bikeTimeTotal > bikeTimeSec) {
+                                const scale = bikeTimeSec / bikeTimeTotal;
+                                bikeTimeTotal = bikeTimeSec;
+                                subPathBike.forEach((sp) => {
+                                    sp.sectionTime = Math.round(sp.sectionTime * scale);
+                                });
+                            }
                             const summaryBike = {
                                 info: { totalTime: Math.round(bikeTimeTotal / 60) },
                                 subPath: subPathBike,
@@ -347,7 +375,7 @@ export default function IntegratedRoute({
                     }
 
                     const unique = removeDuplicates(candidates);
-                    const sorted = sortCandidates(unique);
+                    const sorted = sortCandidates(unique, bikeTimeSec);
                     setRoutes(sorted.slice(0, 5));
                 } catch (err) {
                     console.error(err);
@@ -434,7 +462,7 @@ export default function IntegratedRoute({
                 }
 
                 const unique = removeDuplicates(results);
-                sorted = sortCandidates(unique);
+                sorted = sortCandidates(unique, bikeTimeSec);
 
                 if (sorted.length < 5) {
                     timeSec += 900;
