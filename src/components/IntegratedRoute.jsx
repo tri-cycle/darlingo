@@ -114,6 +114,56 @@ async function createWalkSegment(from, to) {
     return { segment, subPath };
 }
 
+// 🚶‍♀️ 전체 도보 시간 계산
+function calcWalkTime(summary) {
+    if (!summary || !summary.subPath) return Infinity;
+    return summary.subPath.reduce(
+        (acc, sp) => (sp.trafficType === 3 ? acc + (sp.sectionTime || 0) : acc),
+        0
+    );
+}
+
+// 🚲 따릉이 이용 시간 계산
+function calcBikeTime(summary) {
+    if (!summary || !summary.subPath) return Infinity;
+    return summary.subPath.reduce(
+        (acc, sp) => (sp.trafficType === 4 ? acc + (sp.sectionTime || 0) : acc),
+        0
+    );
+}
+
+// 중복 경로 제거
+function removeDuplicates(list) {
+    const unique = [];
+    const seen = new Set();
+    for (const r of list) {
+        const key = JSON.stringify(r.summary);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        unique.push(r);
+    }
+    return unique;
+}
+
+// 기존 정렬 전략 재사용
+function sortCandidates(list) {
+    return list.sort((a, b) => {
+        const aWalk = calcWalkTime(a.summary);
+        const bWalk = calcWalkTime(b.summary);
+        if (aWalk >= 60 && bWalk >= 60) {
+            const aBike = calcBikeTime(a.summary);
+            const bBike = calcBikeTime(b.summary);
+            return aBike - bBike;
+        }
+        if (aWalk >= 60) return 1;
+        if (bWalk >= 60) return -1;
+        const aBike = calcBikeTime(a.summary);
+        const bBike = calcBikeTime(b.summary);
+        if (aBike !== bBike) return aBike - bBike;
+        return aWalk - bWalk;
+    });
+}
+
 
 export default function IntegratedRoute({
     mapInstance,
@@ -155,156 +205,89 @@ export default function IntegratedRoute({
         if (viaPoints.length > 0) {
             (async () => {
                 try {
-                    const points = [start, ...viaPoints, end];
+                    const viaCoords = viaPoints.map((v) => ({ x: v.lng, y: v.lat }));
+                    const res = await fetchOdsayRoute(
+                        { y: start.lat, x: start.lng },
+                        { y: end.lat, x: end.lng },
+                        viaCoords
+                    );
+                    const paths = res?.result?.path || [];
+                    const topPaths = paths.slice(0, 3);
 
-                    // ODsay 전체 경로 후보
-                    let odsaySegments = [];
-                    let odsaySubPaths = [];
-                    let odsayTime = 0;
+                    const candidates = [];
+                    for (const p of topPaths) {
+                        const segments = await processOdsayPath(p, start, end);
+                        addNames(p);
+                        candidates.push({ segments, summary: p });
+                    }
 
-                    // 자전거 전용 경로 후보
-                    let bikeSegments = [];
-                    let bikeSubPaths = [];
-                    let bikeTimeTotal = 0;
-                    let bikePossible = bikeTimeSec > 0 && stations.length > 0;
+                    if (bikeTimeSec > 0 && stations.length > 0) {
+                        const startStation = findNearestStation(start, stations);
+                        const endStation = findNearestStation(end, stations);
 
-                    for (let i = 0; i < points.length - 1; i++) {
-                        const s = points[i];
-                        const e = points[i + 1];
+                        if (startStation && endStation) {
+                            const forward = await fetchTimedBikeSegments(
+                                startStation,
+                                endStation,
+                                stations,
+                                bikeTimeSec
+                            );
 
-                        // 📍 ODsay 경로 계산
-                        const res = await fetchOdsayRoute({ y: s.lat, x: s.lng }, { y: e.lat, x: e.lng });
-                        const path = res?.result?.path?.[0];
-                        if (path) {
-                            const segs = await processOdsayPath(path, s, e);
-                            odsaySegments = odsaySegments.concat(segs);
-                            const subPaths = path.subPath || [];
-                            odsaySubPaths = odsaySubPaths.concat(subPaths);
-                            odsayTime += getTotalTime(path, subPaths);
-                        }
+                            const r1 = await createBikeFirst(
+                                forward.segment1,
+                                forward.transferStation,
+                                0,
+                                viaPoints
+                            );
+                            if (r1) candidates.push(r1);
 
-                        // 🚲 자전거 전용 경로 계산
-                        if (bikePossible) {
-                            const startStation = findNearestStation(s, stations);
-                            const endStation = findNearestStation(e, stations);
-                            if (!startStation || !endStation) {
-                                bikePossible = false;
-                            } else {
-                                // 시작 지점까지 도보 세그먼트 생성
-                                const { segment: walkStartSeg, subPath: walkStartSub } = await createWalkSegment(
-                                    s,
-                                    {
-                                        lat: +startStation.stationLatitude,
-                                        lng: +startStation.stationLongitude,
-                                    }
-                                );
-
-                                // 자전거 구간
-                                const { segment1, segment2 } = await fetchTimedBikeSegments(
-                                    startStation,
+                            if (candidates.length < 5) {
+                                const backward = await fetchTimedBikeSegments(
                                     endStation,
+                                    startStation,
                                     stations,
                                     bikeTimeSec
                                 );
-                                const coords1 = polyline.decode(segment1.routes[0].geometry, 5);
-                                const coords2 = polyline.decode(segment2.routes[0].geometry, 5);
-                                const bikePath = [...coords1, ...coords2.slice(1)].map(
-                                    ([lat, lng]) => new window.naver.maps.LatLng(lat, lng)
+                                const r2 = await createBikeLast(
+                                    backward.segment1,
+                                    backward.transferStation,
+                                    0,
+                                    viaPoints
                                 );
-                                const bikeDist =
-                                    segment1.routes[0].summary.distance +
-                                    segment2.routes[0].summary.distance;
-                                const FIXED_BIKE_SPEED_KMPH = 13;
-                                const bikeSec = (bikeDist / 1000) / FIXED_BIKE_SPEED_KMPH * 3600;
-                                const bikeSub = {
-                                    trafficType: 4,
-                                    laneColor: ROUTE_COLORS.BIKE,
-                                    startName: startStation.stationName.replace(/^\d+\.\s*/, ""),
-                                    endName: endStation.stationName.replace(/^\d+\.\s*/, ""),
-                                    sectionTime: Math.round(bikeSec / 60),
-                                    distance: bikeDist,
-                                    avgSpeed: FIXED_BIKE_SPEED_KMPH,
-                                };
-                                const bikeSeg = {
-                                    type: "bike",
-                                    color: ROUTE_COLORS.BIKE,
-                                    coords: bikePath,
-                                };
+                                if (r2) candidates.push(r2);
+                            }
 
-                                // 도착 지점까지 도보 세그먼트 생성
-                                const { segment: walkEndSeg, subPath: walkEndSub } = await createWalkSegment(
-                                    {
-                                        lat: +endStation.stationLatitude,
-                                        lng: +endStation.stationLongitude,
-                                    },
-                                    e
+                            let altIndex = 1;
+                            while (candidates.length < 5) {
+                                const alt = await createBikeFirst(
+                                    forward.segment1,
+                                    forward.transferStation,
+                                    altIndex,
+                                    viaPoints
                                 );
+                                if (!alt) break;
+                                candidates.push(alt);
+                                altIndex += 1;
+                            }
 
-                                bikeSegments = bikeSegments.concat([walkStartSeg, bikeSeg, walkEndSeg]);
-                                bikeSubPaths = bikeSubPaths.concat([walkStartSub, bikeSub, walkEndSub]);
-                                bikeTimeTotal +=
-                                    walkStartSub.sectionTime +
-                                    bikeSub.sectionTime +
-                                    walkEndSub.sectionTime;
+                            if (candidates.length < 5) {
+                                const midStations = await findMiddleStations(viaPoints);
+                                if (midStations) {
+                                    const midRoute = await createBikeMiddle(
+                                        midStations.startStation,
+                                        midStations.endStation,
+                                        0,
+                                        viaPoints
+                                    );
+                                    if (midRoute) candidates.push(midRoute);
+                                }
                             }
                         }
                     }
 
-                    const candidates = [];
-                    if (odsaySegments.length > 0) {
-                        const summary = { info: { totalTime: odsayTime }, subPath: odsaySubPaths };
-                        addNames(summary);
-                        candidates.push({ segments: odsaySegments, summary });
-                    }
-                    if (bikePossible && bikeSegments.length > 0) {
-                        const summaryBike = { info: { totalTime: bikeTimeTotal }, subPath: bikeSubPaths };
-                        addNames(summaryBike);
-                        candidates.push({ segments: bikeSegments, summary: summaryBike });
-                    }
-
-                    // 중복 제거
-                    const unique = [];
-                    const seen = new Set();
-                    for (const r of candidates) {
-                        const key = JSON.stringify(r.summary);
-                        if (seen.has(key)) continue;
-                        seen.add(key);
-                        unique.push(r);
-                    }
-
-                    // 정렬 로직 재사용
-                    function calcWalkTime(summary) {
-                        if (!summary || !summary.subPath) return Infinity;
-                        return summary.subPath.reduce(
-                            (acc, sp) => (sp.trafficType === 3 ? acc + (sp.sectionTime || 0) : acc),
-                            0
-                        );
-                    }
-                    function calcBikeTime(summary) {
-                        if (!summary || !summary.subPath) return Infinity;
-                        return summary.subPath.reduce(
-                            (acc, sp) => (sp.trafficType === 4 ? acc + (sp.sectionTime || 0) : acc),
-                            0
-                        );
-                    }
-
-                    const sorted = unique.sort((a, b) => {
-                        const aWalk = calcWalkTime(a.summary);
-                        const bWalk = calcWalkTime(b.summary);
-                        if (aWalk >= 60 && bWalk >= 60) {
-                            const aBike = calcBikeTime(a.summary);
-                            const bBike = calcBikeTime(b.summary);
-                            return aBike - bBike;
-                        }
-                        if (aWalk >= 60) return 1;
-                        if (bWalk >= 60) return -1;
-                        const aBike = calcBikeTime(a.summary);
-                        const bBike = calcBikeTime(b.summary);
-                        if (aBike !== bBike) return aBike - bBike;
-                        return aWalk - bWalk;
-                    });
-
-                    setRoutes(sorted);
+                    const unique = removeDuplicates(candidates);
+                    const sorted = sortCandidates(unique);
+                    setRoutes(sorted.slice(0, 5));
                 } catch (err) {
                     console.error(err);
                 } finally {
@@ -385,49 +368,8 @@ export default function IntegratedRoute({
                     }
                 }
 
-                // 중복 경로 제거
-                const unique = [];
-                const seen = new Set();
-                for (const r of results) {
-                    const key = JSON.stringify(r.summary);
-                    if (seen.has(key)) continue;
-                    seen.add(key);
-                    unique.push(r);
-                }
-
-                // 🚶‍♀️ 전체 도보 시간 계산 함수
-                function calcWalkTime(summary) {
-                    if (!summary || !summary.subPath) return Infinity;
-                    return summary.subPath.reduce((acc, sp) => {
-                        return sp.trafficType === 3 ? acc + (sp.sectionTime || 0) : acc;
-                    }, 0);
-                }
-
-                // 🚲 따릉이 이용 시간 계산 함수
-                function calcBikeTime(summary) {
-                    if (!summary || !summary.subPath) return Infinity;
-                    return summary.subPath.reduce((acc, sp) => {
-                        return sp.trafficType === 4 ? acc + (sp.sectionTime || 0) : acc;
-                    }, 0);
-                }
-
-                // 따릉이 사용 시간이 짧은 경로를 우선적으로 정렬하고
-                // 도보 시간이 60분 이상인 경우는 가장 뒤로 보냅니다.
-                sorted = unique.sort((a, b) => {
-                    const aWalk = calcWalkTime(a.summary);
-                    const bWalk = calcWalkTime(b.summary);
-                    if (aWalk >= 60 && bWalk >= 60) {
-                        const aBike = calcBikeTime(a.summary);
-                        const bBike = calcBikeTime(b.summary);
-                        return aBike - bBike;
-                    }
-                    if (aWalk >= 60) return 1;
-                    if (bWalk >= 60) return -1;
-                    const aBike = calcBikeTime(a.summary);
-                    const bBike = calcBikeTime(b.summary);
-                    if (aBike !== bBike) return aBike - bBike;
-                    return aWalk - bWalk;
-                });
+                const unique = removeDuplicates(results);
+                sorted = sortCandidates(unique);
 
                 if (sorted.length < 5) {
                     timeSec += 900;
@@ -440,7 +382,7 @@ export default function IntegratedRoute({
         };
 
         // ----- 전략별 계산 함수들 -----
-        async function createBikeFirst(segment1, transferStation, pathIndex = 0) {
+        async function createBikeFirst(segment1, transferStation, pathIndex = 0, vias = []) {
             const startStation = findNearestStation(start, stations);
             const endStation = findNearestStation(end, stations);
             if (!startStation || !endStation) return null;
@@ -495,7 +437,8 @@ export default function IntegratedRoute({
             const bikePath = polyline.decode(segment1.routes[0].geometry, 5).map(([lat, lng]) => new window.naver.maps.LatLng(lat, lng));
             const bikeSegment = { type: 'bike', color: ROUTE_COLORS.BIKE, coords: bikePath };
 
-            const resEnd = await fetchOdsayRoute({ y: +transferStation.stationLatitude, x: +transferStation.stationLongitude }, { y: end.lat, x: end.lng });
+            const viaCoords = vias.map((v) => ({ x: v.lng, y: v.lat }));
+            const resEnd = await fetchOdsayRoute({ y: +transferStation.stationLatitude, x: +transferStation.stationLongitude }, { y: end.lat, x: end.lng }, viaCoords);
             const endPaths = resEnd?.result?.path || [];
             const endPath = endPaths[pathIndex] || endPaths[0];
             let endSubPaths = endPath?.subPath || [];
@@ -520,7 +463,7 @@ export default function IntegratedRoute({
             return { segments, summary };
         }
 
-        async function createBikeLast(segment1, transferStation, pathIndex = 0) {
+        async function createBikeLast(segment1, transferStation, pathIndex = 0, vias = []) {
             const startStation = findNearestStation(start, stations);
             const endStation = findNearestStation(end, stations);
             if (!startStation || !endStation) return null;
@@ -532,7 +475,8 @@ export default function IntegratedRoute({
                 bikeTimeSec: bikeTimeSec,
             });
 
-            const resStart = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: +transferStation.stationLatitude, x: +transferStation.stationLongitude });
+            const viaCoords = vias.map((v) => ({ x: v.lng, y: v.lat }));
+            const resStart = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: +transferStation.stationLatitude, x: +transferStation.stationLongitude }, viaCoords);
             const startPaths = resStart?.result?.path || [];
             const startPath = startPaths[pathIndex] || startPaths[0];
             let startSubPaths = startPath?.subPath || [];
@@ -603,10 +547,11 @@ export default function IntegratedRoute({
             return { segments, summary };
         }
 
-        async function createBikeMiddle(startStation, endStation, pathIndex = 0) {
+        async function createBikeMiddle(startStation, endStation, pathIndex = 0, vias = []) {
             if (!startStation || !endStation) return null;
 
-            const resStart = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: +startStation.stationLatitude, x: +startStation.stationLongitude });
+            const viaCoords = vias.map((v) => ({ x: v.lng, y: v.lat }));
+            const resStart = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: +startStation.stationLatitude, x: +startStation.stationLongitude }, viaCoords);
             const startPaths = resStart?.result?.path || [];
             const startPath = startPaths[pathIndex] || startPaths[0];
             let startSubPaths = startPath?.subPath || [];
@@ -644,7 +589,7 @@ export default function IntegratedRoute({
                 avgSpeed: FIXED_BIKE_SPEED_KMPH,
             };
 
-            const resEnd = await fetchOdsayRoute({ y: +endStation.stationLatitude, x: +endStation.stationLongitude }, { y: end.lat, x: end.lng });
+            const resEnd = await fetchOdsayRoute({ y: +endStation.stationLatitude, x: +endStation.stationLongitude }, { y: end.lat, x: end.lng }, viaCoords);
             const endPaths = resEnd?.result?.path || [];
             const endPath = endPaths[pathIndex] || endPaths[0];
             let endSubPaths = endPath?.subPath || [];
@@ -669,8 +614,9 @@ export default function IntegratedRoute({
             return { segments, summary };
         }
 
-        async function findMiddleStations() {
-            const res = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: end.lat, x: end.lng });
+        async function findMiddleStations(vias = []) {
+            const viaCoords = vias.map((v) => ({ x: v.lng, y: v.lat }));
+            const res = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: end.lat, x: end.lng }, viaCoords);
             const path = res?.result?.path?.[0];
             if (!path) return null;
             const subPaths = path.subPath || [];
