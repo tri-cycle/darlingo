@@ -1,6 +1,6 @@
 // src/components/IntegratedRoute.jsx
 
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { fetchOdsayRoute } from "../utils/fetchOdsayRoute";
 import { fetchTimedBikeSegments } from "../utils/splitBikeRoute";
 import { fetchTmapRoute } from "../utils/fetchTmapRoute";
@@ -127,6 +127,8 @@ export default function IntegratedRoute({
     setRoutes,
     setIsCalculating,
 }) {
+    const waypointsKey = useMemo(() => JSON.stringify(waypoints), [waypoints]);
+    const stationsKey = useMemo(() => JSON.stringify(stations), [stations]);
 
     useEffect(() => {
         if (!mapInstance || !start || !end) return;
@@ -708,7 +710,8 @@ export default function IntegratedRoute({
                 setIsCalculating(false);
             }
         })();
-    }, [mapInstance, start, end, waypoints, stations, bikeTimeSec, setRoutes, setIsCalculating]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mapInstance, start, end, waypointsKey, stationsKey, bikeTimeSec]);
 
     const currentSegments = routes[selectedIndex]?.segments || [];
 
