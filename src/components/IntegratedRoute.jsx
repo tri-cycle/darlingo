@@ -104,16 +104,6 @@ function getTotalTime(path, subPaths) {
     return (subPaths || []).reduce((sum, sp) => sum + (sp.sectionTime || 0), 0);
 }
 
-// 실제 지점 간의 도보 경로를 계산하여 세그먼트와 subPath 정보를 생성합니다.
-async function createWalkSegment(from, to) {
-    const coords = await fetchTmapRoute(from, to);
-    const distance = Math.round(haversine(from.lat, from.lng, to.lat, to.lng));
-    const sectionTime = Math.max(1, Math.round(distance / 80));
-    const subPath = { trafficType: 3, distance, sectionTime };
-    const segment = { ...subPath, type: 'walk', color: ROUTE_COLORS.WALK, coords };
-    return { segment, subPath };
-}
-
 // 🚶‍♀️ 전체 도보 시간 계산
 function calcWalkTime(summary) {
     if (!summary || !summary.subPath) return Infinity;
@@ -222,6 +212,70 @@ export default function IntegratedRoute({
                     }
 
                     if (bikeTimeSec > 0 && stations.length > 0) {
+                        // 📌 경유지 기준으로 전체 자전거 시간을 구간별로 분배
+                        const pointsForBike = [start, ...viaPoints, end];
+                        const stationPairs = [];
+                        let totalDist = 0;
+                        for (let i = 0; i < pointsForBike.length - 1; i++) {
+                            const from = pointsForBike[i];
+                            const to = pointsForBike[i + 1];
+                            const sStation = findNearestStation(from, stations);
+                            const eStation = findNearestStation(to, stations);
+                            if (!sStation || !eStation) continue;
+                            const dist = haversine(
+                                +sStation.stationLatitude,
+                                +sStation.stationLongitude,
+                                +eStation.stationLatitude,
+                                +eStation.stationLongitude
+                            );
+                            stationPairs.push({ startStation: sStation, endStation: eStation, dist });
+                            totalDist += dist;
+                        }
+
+                        const bikeSegments = [];
+                        const subPathBike = [];
+                        let bikeTimeTotal = 0;
+                        let remainingTime = bikeTimeSec;
+                        for (let i = 0; i < stationPairs.length; i++) {
+                            const { startStation, endStation, dist } = stationPairs[i];
+                            let alloc = Math.round((dist / totalDist) * bikeTimeSec);
+                            if (i === stationPairs.length - 1) alloc = remainingTime;
+                            remainingTime -= alloc;
+                            const { segment1, segment2 } = await fetchTimedBikeSegments(
+                                startStation,
+                                endStation,
+                                stations,
+                                alloc
+                            );
+                            const coords1 = polyline.decode(segment1.routes[0].geometry, 5);
+                            const coords2 = polyline.decode(segment2.routes[0].geometry, 5);
+                            const bikePath = [...coords1, ...coords2.slice(1)].map(
+                                ([lat, lng]) => new window.naver.maps.LatLng(lat, lng)
+                            );
+                            bikeSegments.push({ type: "bike", color: ROUTE_COLORS.BIKE, coords: bikePath });
+                            const segDist =
+                                segment1.routes[0].summary.distance + segment2.routes[0].summary.distance;
+                            const FIXED_BIKE_SPEED_KMPH = 13;
+                            const segTimeSec = (segDist / 1000) / FIXED_BIKE_SPEED_KMPH * 3600;
+                            bikeTimeTotal += segTimeSec;
+                            subPathBike.push({
+                                trafficType: 4,
+                                laneColor: ROUTE_COLORS.BIKE,
+                                startName: startStation.stationName.replace(/^\d+\.\s*/, ""),
+                                endName: endStation.stationName.replace(/^\d+\.\s*/, ""),
+                                sectionTime: Math.round(segTimeSec / 60),
+                                distance: segDist,
+                                avgSpeed: FIXED_BIKE_SPEED_KMPH,
+                            });
+                        }
+                        if (bikeSegments.length > 0) {
+                            const summaryBike = {
+                                info: { totalTime: Math.round(bikeTimeTotal / 60) },
+                                subPath: subPathBike,
+                            };
+                            candidates.push({ segments: bikeSegments, summary: summaryBike });
+                        }
+
                         const startStation = findNearestStation(start, stations);
                         const endStation = findNearestStation(end, stations);
 
