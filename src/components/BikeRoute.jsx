@@ -1,5 +1,5 @@
 // src/components/BikeRoute.jsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { fetchBikeRoute } from "../utils/fetchBikeRoute";
 import polyline from "polyline";  // npm install polyline
 
@@ -12,6 +12,10 @@ export default function BikeRoute({ mapInstance, from, to }) {
 
   const [route, setRoute] = useState(null);
   const polylineRef = useRef(null);
+
+  // 좌표 배열이 참조 변경되어도 동일한 좌표로 인식되도록 키 문자열 생성
+  const fromKey = useMemo(() => (from ? from.join(",") : ""), [from]);
+  const toKey = useMemo(() => (to ? to.join(",") : ""), [to]);
 
   useEffect(() => {
     console.log("🚀 ORS useEffect 시작");
@@ -29,7 +33,7 @@ export default function BikeRoute({ mapInstance, from, to }) {
         console.error("❌ ORS 호출 실패:", err);
       }
     })();
-  }, [mapInstance, from, to]);
+  }, [mapInstance, fromKey, toKey]);
 
   useEffect(() => {
     if (!mapInstance || !route) return;
