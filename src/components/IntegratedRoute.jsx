@@ -195,11 +195,12 @@ export default function IntegratedRoute({
         if (viaPoints.length > 0) {
             (async () => {
                 try {
-                    const viaCoords = viaPoints.map((v) => ({ x: v.lng, y: v.lat }));
+                    const viaPoint = viaPoints[0];
+                    const viaCoord = viaPoint ? { x: viaPoint.lng, y: viaPoint.lat } : null;
                     const res = await fetchOdsayRoute(
                         { y: start.lat, x: start.lng },
                         { y: end.lat, x: end.lng },
-                        viaCoords
+                        viaCoord
                     );
                     const paths = res?.result?.path || [];
                     const topPaths = paths.slice(0, 3);
@@ -506,8 +507,8 @@ export default function IntegratedRoute({
             const bikePath = polyline.decode(segment1.routes[0].geometry, 5).map(([lat, lng]) => new window.naver.maps.LatLng(lat, lng));
             const bikeSegment = { type: 'bike', color: ROUTE_COLORS.BIKE, coords: bikePath };
 
-            const viaCoords = vias.map((v) => ({ x: v.lng, y: v.lat }));
-            const resEnd = await fetchOdsayRoute({ y: +transferStation.stationLatitude, x: +transferStation.stationLongitude }, { y: end.lat, x: end.lng }, viaCoords);
+            const viaCoord = vias[0] ? { x: vias[0].lng, y: vias[0].lat } : null;
+            const resEnd = await fetchOdsayRoute({ y: +transferStation.stationLatitude, x: +transferStation.stationLongitude }, { y: end.lat, x: end.lng }, viaCoord);
             const endPaths = resEnd?.result?.path || [];
             const endPath = endPaths[pathIndex] || endPaths[0];
             let endSubPaths = endPath?.subPath || [];
@@ -549,8 +550,8 @@ export default function IntegratedRoute({
                 bikeTimeSec: bikeTimeSec,
             });
 
-            const viaCoords = vias.map((v) => ({ x: v.lng, y: v.lat }));
-            const resStart = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: +transferStation.stationLatitude, x: +transferStation.stationLongitude }, viaCoords);
+            const viaCoord = vias[0] ? { x: vias[0].lng, y: vias[0].lat } : null;
+            const resStart = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: +transferStation.stationLatitude, x: +transferStation.stationLongitude }, viaCoord);
             const startPaths = resStart?.result?.path || [];
             const startPath = startPaths[pathIndex] || startPaths[0];
             let startSubPaths = startPath?.subPath || [];
@@ -629,8 +630,8 @@ export default function IntegratedRoute({
             )
                 return null;
 
-            const viaCoords = vias.map((v) => ({ x: v.lng, y: v.lat }));
-            const resStart = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: +startStation.stationLatitude, x: +startStation.stationLongitude }, viaCoords);
+            const viaCoord = vias[0] ? { x: vias[0].lng, y: vias[0].lat } : null;
+            const resStart = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: +startStation.stationLatitude, x: +startStation.stationLongitude }, viaCoord);
             const startPaths = resStart?.result?.path || [];
             const startPath = startPaths[pathIndex] || startPaths[0];
             let startSubPaths = startPath?.subPath || [];
@@ -668,7 +669,7 @@ export default function IntegratedRoute({
                 avgSpeed: FIXED_BIKE_SPEED_KMPH,
             };
 
-            const resEnd = await fetchOdsayRoute({ y: +endStation.stationLatitude, x: +endStation.stationLongitude }, { y: end.lat, x: end.lng }, viaCoords);
+            const resEnd = await fetchOdsayRoute({ y: +endStation.stationLatitude, x: +endStation.stationLongitude }, { y: end.lat, x: end.lng }, viaCoord);
             const endPaths = resEnd?.result?.path || [];
             const endPath = endPaths[pathIndex] || endPaths[0];
             let endSubPaths = endPath?.subPath || [];
@@ -694,8 +695,8 @@ export default function IntegratedRoute({
         }
 
         async function findMiddleStations(vias = []) {
-            const viaCoords = vias.map((v) => ({ x: v.lng, y: v.lat }));
-            const res = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: end.lat, x: end.lng }, viaCoords);
+            const viaCoord = vias[0] ? { x: vias[0].lng, y: vias[0].lat } : null;
+            const res = await fetchOdsayRoute({ y: start.lat, x: start.lng }, { y: end.lat, x: end.lng }, viaCoord);
             const path = res?.result?.path?.[0];
             if (!path) return null;
             const subPaths = path.subPath || [];
