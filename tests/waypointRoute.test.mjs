@@ -9,10 +9,20 @@ function calcBikeTime(summary) {
   if (!summary || !summary.subPath) return Infinity;
   return summary.subPath.reduce((acc, sp) => (sp.trafficType === 4 ? acc + (sp.sectionTime || 0) : acc), 0);
 }
-function sortCandidates(list, bikeLimitSec = Infinity, hasWaypoints = false) {
+function sortCandidates(
+  list,
+  bikeLimitSec = Infinity,
+  hasWaypoints = false,
+  minBikeTimeSec = 0
+) {
+  const bikeFiltered = list.filter(
+    r => calcBikeTime(r.summary) * 60 >= minBikeTimeSec
+  );
   const filtered = hasWaypoints
-    ? list
-    : list.filter(r => calcBikeTime(r.summary) * 60 <= bikeLimitSec + 120);
+    ? bikeFiltered
+    : bikeFiltered.filter(
+        r => calcBikeTime(r.summary) * 60 <= bikeLimitSec + 120
+      );
   return filtered.sort((a, b) => {
     const aWalk = calcWalkTime(a.summary);
     const bWalk = calcWalkTime(b.summary);
@@ -43,7 +53,7 @@ const candidate = {
 };
 
 // 경유지가 있을 때는 제한을 넘어도 필터링되지 않는다.
-const resultWithWaypoints = sortCandidates([candidate], 900, true); // 제한 15분(900초)
+const resultWithWaypoints = sortCandidates([candidate], 900, true, 900); // 제한 15분(900초)
 assert.strictEqual(resultWithWaypoints.length, 1);
 assert.deepStrictEqual(
   resultWithWaypoints[0].summary.subPath.map(sp => sp.trafficType),
