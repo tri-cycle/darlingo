@@ -6,7 +6,7 @@ function calcWalkTime(summary) {
   return summary.subPath.reduce((acc, sp) => (sp.trafficType === 3 ? acc + (sp.sectionTime || 0) : acc), 0);
 }
 function calcBikeTime(summary) {
-  if (!summary || !summary.subPath) return Infinity;
+  if (!summary || !summary.subPath) return 0;
   return summary.subPath.reduce((acc, sp) => (sp.trafficType === 4 ? acc + (sp.sectionTime || 0) : acc), 0);
 }
 function sortCandidates(
@@ -15,9 +15,14 @@ function sortCandidates(
   hasWaypoints = false,
   minBikeTimeSec = 0
 ) {
-  const bikeFiltered = list.filter(
-    r => calcBikeTime(r.summary) * 60 >= minBikeTimeSec
-  );
+  const bikeFiltered = list.filter(r => {
+    const bikeTime = calcBikeTime(r.summary);
+    return (
+      r.summary?.subPath &&
+      Number.isFinite(bikeTime) &&
+      bikeTime * 60 >= minBikeTimeSec
+    );
+  });
   const filtered = hasWaypoints
     ? bikeFiltered
     : bikeFiltered.filter(
@@ -63,5 +68,10 @@ assert.deepStrictEqual(
 // 경유지가 없으면 필터링된다.
 const resultWithoutWaypoints = sortCandidates([candidate], 900, false);
 assert.strictEqual(resultWithoutWaypoints.length, 0);
+
+// 요약 정보가 없으면 필터링된다.
+const candidateNoSummary = { summary: null };
+const resultNoSummary = sortCandidates([candidateNoSummary], 900, true);
+assert.strictEqual(resultNoSummary.length, 0);
 
 console.log('Waypoint route test passed');
