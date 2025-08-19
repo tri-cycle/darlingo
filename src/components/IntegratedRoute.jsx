@@ -79,13 +79,14 @@ async function processOdsayPath(path, overallStart, overallEnd) {
 
 /**
  * 하나의 구간(start→end)에 대한 세그먼트와 요약 정보를 생성합니다.
- *
- * @param {object} a - 출발지 객체
- * @param {object} b - 도착지 객체
- * @param {object} path - ODsay에서 받은 path 객체
- * @param {boolean} includeBike - true이면 자전거 세그먼트를 추가
+ * includeBike가 true이면 자전거 세그먼트를 가장 앞에 추가합니다.
  */
-async function buildSegment(a, b, path, includeBike) {
+async function buildSegment(a, b, includeBike) {
+  const res = await fetchOdsayRoute(
+    { y: a.lat, x: a.lng },
+    { y: b.lat, x: b.lng }
+  );
+  const path = res?.result?.path?.[0];
   if (!path) {
     throw new Error("ODsay 경로를 찾을 수 없습니다.");
   }
@@ -147,62 +148,20 @@ export default function IntegratedRoute({
         const dist1 = haversine(start.lat, start.lng, via.lat, via.lng);
         const dist2 = haversine(via.lat, via.lng, end.lat, end.lng);
 
-        const [res1, res2] = await Promise.all([
-          fetchOdsayRoute(
-            { y: start.lat, x: start.lng },
-            { y: via.lat, x: via.lng },
-            null,
-            { searchType: 0, searchPathType: 0 }
-          ),
-          fetchOdsayRoute(
-            { y: via.lat, x: via.lng },
-            { y: end.lat, x: end.lng },
-            null,
-            { searchType: 0, searchPathType: 0 }
-          ),
-        ]);
+        const seg1 = await buildSegment(start, via, dist1 >= dist2);
+        const seg2 = await buildSegment(via, end, dist2 > dist1);
 
-        const paths1 = res1?.result?.path?.slice(0, 5) || [];
-        const paths2 = res2?.result?.path?.slice(0, 5) || [];
+        const merged = {
+          segments: [...seg1.segments, ...seg2.segments],
+          summary: {
+            info: {
+              totalTime: seg1.summary.info.totalTime + seg2.summary.info.totalTime,
+            },
+            subPath: [...seg1.summary.subPath, ...seg2.summary.subPath],
+          },
+        };
 
-        const segList1 = [];
-        for (const p of paths1) {
-          try {
-            segList1.push(await buildSegment(start, via, p, dist1 >= dist2));
-          } catch (e) {
-            console.error(e);
-          }
-        }
-
-        const segList2 = [];
-        for (const p of paths2) {
-          try {
-            segList2.push(await buildSegment(via, end, p, dist2 > dist1));
-          } catch (e) {
-            console.error(e);
-          }
-        }
-
-        const combinations = [];
-        for (const a of segList1) {
-          for (const b of segList2) {
-            combinations.push({
-              segments: [...a.segments, ...b.segments],
-              summary: {
-                info: {
-                  totalTime: a.summary.info.totalTime + b.summary.info.totalTime,
-                },
-                subPath: [...a.summary.subPath, ...b.summary.subPath],
-              },
-            });
-          }
-        }
-
-        combinations.sort(
-          (a, b) => a.summary.info.totalTime - b.summary.info.totalTime
-        );
-
-        setRoutes(combinations.slice(0, 5));
+        setRoutes([merged]);
       } catch (err) {
         console.error(err);
       } finally {
