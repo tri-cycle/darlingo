@@ -138,8 +138,10 @@ function removeDuplicates(list) {
 
 // 기존 정렬 전략 재사용 + 자전거 시간 제한 필터링
 function sortCandidates(list, bikeLimitSec = Infinity) {
+    // 경유지 분배 시 소수점 및 경로 계산 오차로 인해
+    // 실제 자전거 시간이 약간 초과될 수 있으므로 여유를 둔다.
     const filtered = list.filter((r) =>
-        calcBikeTime(r.summary) * 60 <= bikeLimitSec
+        calcBikeTime(r.summary) * 60 <= bikeLimitSec + 120
     );
     return filtered.sort((a, b) => {
         const aWalk = calcWalkTime(a.summary);
@@ -316,7 +318,8 @@ export default function IntegratedRoute({
                             const segDist =
                                 segment1.routes[0].summary.distance + segment2.routes[0].summary.distance;
                             const FIXED_BIKE_SPEED_KMPH = 13;
-                            const segTimeSec = (segDist / 1000) / FIXED_BIKE_SPEED_KMPH * 3600;
+                            // ORS 거리 기반 시간을 사용하지 않고 할당된 시간을 그대로 사용
+                            const segTimeSec = alloc;
                             bikeTimeTotal += segTimeSec;
                             subPathBike.push({
                                 trafficType: 4,
@@ -554,8 +557,8 @@ export default function IntegratedRoute({
             
             const bikeDist = segment1.routes[0].summary.distance;
             const FIXED_BIKE_SPEED_KMPH = 13; // ◀️◀️ 여기를 13으로 수정
-            const newBikeSec = (bikeDist / 1000) / FIXED_BIKE_SPEED_KMPH * 3600;
-            const bikeTimeMin = Math.max(1, Math.round(newBikeSec / 60));
+            // ORS 거리 기반 시간 대신 사용자가 지정한 시간을 사용
+            const bikeTimeMin = Math.max(1, Math.round(bikeTimeSec / 60));
 
             const bikeSubPath = {
                 trafficType: 4,
@@ -645,8 +648,8 @@ export default function IntegratedRoute({
             
             const bikeDist = segment1.routes[0].summary.distance;
             const FIXED_BIKE_SPEED_KMPH = 13; // ◀️◀️ 여기를 13으로 수정
-            const newBikeSec = (bikeDist / 1000) / FIXED_BIKE_SPEED_KMPH * 3600;
-            const bikeTimeMin = Math.max(1, Math.round(newBikeSec / 60));
+            // ORS 거리 기반 시간 대신 사용자가 지정한 시간을 사용
+            const bikeTimeMin = Math.max(1, Math.round(bikeTimeSec / 60));
 
             const bikeSubPath = {
                 trafficType: 4,
@@ -729,8 +732,8 @@ export default function IntegratedRoute({
 
             const bikeDist = segment1.routes[0].summary.distance + segment2.routes[0].summary.distance;
             const FIXED_BIKE_SPEED_KMPH = 13;
-            const newBikeSec = (bikeDist / 1000) / FIXED_BIKE_SPEED_KMPH * 3600;
-            const bikeTimeMin = Math.max(1, Math.round(newBikeSec / 60));
+            // ORS 거리 기반 시간 대신 사용자가 지정한 시간을 사용
+            const bikeTimeMin = Math.max(1, Math.round(bikeTimeSec / 60));
 
             const coords1 = polyline.decode(segment1.routes[0].geometry, 5);
             const coords2 = polyline.decode(segment2.routes[0].geometry, 5);
