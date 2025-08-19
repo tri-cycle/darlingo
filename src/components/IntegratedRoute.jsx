@@ -116,7 +116,7 @@ function calcWalkTime(summary) {
 
 // 🚲 따릉이 이용 시간 계산
 function calcBikeTime(summary) {
-    if (!summary || !summary.subPath) return Infinity;
+    if (!summary || !summary.subPath) return 0;
     return summary.subPath.reduce(
         (acc, sp) => (sp.trafficType === 4 ? acc + (sp.sectionTime || 0) : acc),
         0
@@ -144,9 +144,14 @@ function sortCandidates(
     minBikeTimeSec = 0
 ) {
     // 먼저 최소 자전거 시간 조건을 만족하는 후보만 남긴다.
-    const bikeFiltered = list.filter(
-        (r) => calcBikeTime(r.summary) * 60 >= minBikeTimeSec
-    );
+    const bikeFiltered = list.filter((r) => {
+        const bikeTime = calcBikeTime(r.summary);
+        return (
+            r.summary?.subPath &&
+            Number.isFinite(bikeTime) &&
+            bikeTime * 60 >= minBikeTimeSec
+        );
+    });
 
     // 경유지가 있는 경우 자전거 시간이 제한을 초과해도 필터링하지 않는다.
     // 경유지 분배 시 소수점 및 경로 계산 오차로 인해
