@@ -137,12 +137,13 @@ function removeDuplicates(list) {
 }
 
 // 기존 정렬 전략 재사용 + 자전거 시간 제한 필터링
-function sortCandidates(list, bikeLimitSec = Infinity) {
+function sortCandidates(list, bikeLimitSec = Infinity, hasWaypoints = false) {
+    // 경유지가 있는 경우 자전거 시간이 제한을 초과해도 필터링하지 않는다.
     // 경유지 분배 시 소수점 및 경로 계산 오차로 인해
     // 실제 자전거 시간이 약간 초과될 수 있으므로 여유를 둔다.
-    const filtered = list.filter((r) =>
-        calcBikeTime(r.summary) * 60 <= bikeLimitSec + 120
-    );
+    const filtered = hasWaypoints
+        ? list
+        : list.filter((r) => calcBikeTime(r.summary) * 60 <= bikeLimitSec + 120);
     return filtered.sort((a, b) => {
         const aWalk = calcWalkTime(a.summary);
         const bWalk = calcWalkTime(b.summary);
@@ -419,7 +420,7 @@ export default function IntegratedRoute({
                     }
 
                     const unique = removeDuplicates(candidates);
-                    const sorted = sortCandidates(unique, bikeTimeSec);
+                    const sorted = sortCandidates(unique, bikeTimeSec, true);
                     setRoutes(sorted.slice(0, 5));
                 } catch (err) {
                     console.error(err);
