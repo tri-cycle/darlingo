@@ -5,7 +5,7 @@
  * @param {Array} vias - 경유지 배열 [{lat, lng}, ...]
  * @returns {Promise<Array>} 네이버 지도 LatLng 객체로 변환된 좌표 배열
  */
-export async function fetchTmapRoute(start, end, vias = [], retries = 1) {
+export async function fetchTmapRoute(start, end, vias = []) {
   const apiKey = import.meta.env.VITE_TMAP_API_KEY;
   const url = "https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1";
 
@@ -50,14 +50,8 @@ export async function fetchTmapRoute(start, end, vias = [], retries = 1) {
     });
 
     if (!response.ok) {
-      if ((response.status === 429 || response.status >= 500) && retries > 0) {
-        await new Promise((r) => setTimeout(r, 1000));
-        return fetchTmapRoute(start, end, vias, retries - 1);
-      }
-      const errorBody = await response.json().catch(() => ({}));
-      throw new Error(
-        `TMAP API Error: ${response.status} - ${errorBody.error?.message || response.statusText}`
-      );
+      const errorBody = await response.json();
+      throw new Error(`TMAP API Error: ${response.status} - ${errorBody.error.message}`);
     }
 
     const data = await response.json();
@@ -73,7 +67,7 @@ export async function fetchTmapRoute(start, end, vias = [], retries = 1) {
 
     return coordinates;
   } catch (error) {
-    console.error("TMAP 경로 조회 중 에러 발생:", error.message);
+    console.error("TMAP 경로 조회 중 에러 발생:", error);
     return [];
   }
 }

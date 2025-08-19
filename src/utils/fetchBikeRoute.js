@@ -34,51 +34,63 @@ export function clearBikeRouteCache() {
  * @param {Array<Array<number>>} coordinates 경유지를 포함한 [lng, lat] 배열
  *   예: [[lng1, lat1], [lng2, lat2], ...]
  */
-export async function fetchBikeRoute(coordinates, retries = 1) {
-  const key = coordinates.map((c) => `${c[0]},${c[1]}`).join("|");
+export async function fetchBikeRoute(coordinates) {
+
+  const key = coordinates.map((c) => `${c[0]},${c[1]}`).join('|');
   if (cache.has(key)) {
+    // 캐시에 저장된 promise 혹은 결과 반환
     return cache.get(key);
   }
 
+  // 요청을 시작하면 즉시 promise를 캐시에 저장하여 중복 호출을 방지합니다.
   const promise = (async () => {
-    await ensureRateLimit();
 
-    const res = await fetch(
-      "https://api.openrouteservice.org/v2/directions/cycling-road/json",
-      {
-        method: "POST",
-        headers: {
-          Authorization: ORS_API_KEY,
-          "Content-Type": "application/json; charset=utf-8",
-        },
-        body: JSON.stringify({
-          coordinates,
-          instructions: false,
-          options: {
-            avoid_features: ["steps"],
-            profile_params: { weightings: { steepness_difficulty: 0 } },
-          },
-        }),
-      }
-    );
+  // 호출 회수를 제한하기 위해 rate limit을 확인합니다.
+  await ensureRateLimit();
 
-    if (!res.ok) {
-      if ((res.status === 429 || res.status >= 500) && retries > 0) {
-        await new Promise((r) => setTimeout(r, 1000));
-        return fetchBikeRoute(coordinates, retries - 1);
-      }
-      const errBody = await res.json().catch(() => ({}));
-      throw new Error(
-        `ORS error ${res.status}: ${errBody.error?.message || res.statusText}`
-      );
+  // --- ⬇️ (수정된 부분) ⬇️ ---
+  // API 호출 직전에 어떤 값으로 요청하는지 콘솔에 출력합니다.
+  console.log("🚀 ORS API 호출 시작:", coordinates);
+  // --- ⬆️ (수정된 부분) ⬆️ ---
+
+  const res = await fetch(
+    "https://api.openrouteservice.org/v2/directions/cycling-road/json",
+    {
+      method: "POST",
+      headers: {
+        Authorization: ORS_API_KEY,
+        "Content-Type": "application/json; charset=utf-8",
+      },
+      body: JSON.stringify({
+        coordinates,
+        options: {
+          avoid_features: ["steps"],
+          profile_params: {
+            weightings: {
+              steepness_difficulty: 0,
+            }
+          }
+        }
+      }),
     }
+  );
+  
+  if (!res.ok) throw new Error(`ORS error ${res.status}: ${await res.text()}`);
 
-    const data = await res.json();
+  const data = await res.json();
+
+  // --- ⬇️ (수정된 부분) ⬇️ ---
+  // API로부터 성공적으로 응답을 받았음을 콘솔에 출력합니다.
+  console.log("✅ ORS API 응답 성공:", data.routes[0].summary);
+  // --- ⬆️ (수정된 부분) ⬆️ ---
+  
     return data;
-  })().catch((err) => {
-    cache.delete(key);
-    throw err;
-  });
+  })()
+    .catch((err) => {
+      // 실패 시 캐시에서 제거하여 다음 호출에서 재시도 가능하게 함
+      cache.delete(key);
+      throw err;
+    });
 
   cache.set(key, promise);
   return promise;
