@@ -86,6 +86,43 @@ async function processOdsayPath(path, overallStart, overallEnd) {
  * @param {boolean} includeBike - true이면 자전거 세그먼트를 추가
  */
 async function buildSegment(a, b, path, includeBike) {
+  if (includeBike) {
+    const bikeData = await fetchBikeRoute([
+      [a.lng, a.lat],
+      [b.lng, b.lat],
+    ]);
+    const bikeCoords = polyline
+      .decode(bikeData.routes[0].geometry, 5)
+      .map(([lat, lng]) => new window.naver.maps.LatLng(lat, lng));
+    const { distance, duration } = bikeData.routes[0].summary;
+    const sectionTime = Math.round(duration / 60);
+
+    const segments = [
+      {
+        type: "bike",
+        color: ROUTE_COLORS.BIKE,
+        coords: bikeCoords,
+      },
+    ];
+
+    const summary = {
+      info: { totalTime: sectionTime },
+      subPath: [
+        {
+          trafficType: 4,
+          laneColor: ROUTE_COLORS.BIKE,
+          startName: a.name,
+          endName: b.name,
+          sectionTime,
+          distance,
+          avgSpeed: (distance / 1000) / (duration / 3600),
+        },
+      ],
+    };
+
+    return { segments, summary };
+  }
+
   if (!path) {
     throw new Error("ODsay 경로를 찾을 수 없습니다.");
   }
@@ -95,33 +132,6 @@ async function buildSegment(a, b, path, includeBike) {
     info: { totalTime: path.info.totalTime },
     subPath: [...(path.subPath || [])],
   };
-
-  if (includeBike) {
-    const bikeData = await fetchBikeRoute([
-      [a.lng, a.lat],
-      [b.lng, b.lat],
-    ]);
-    const bikeCoords = polyline
-      .decode(bikeData.routes[0].geometry, 5)
-      .map(([lat, lng]) => new window.naver.maps.LatLng(lat, lng));
-    segments.unshift({
-      type: "bike",
-      color: ROUTE_COLORS.BIKE,
-      coords: bikeCoords,
-    });
-    const { distance, duration } = bikeData.routes[0].summary;
-    const sectionTime = Math.round(duration / 60);
-    summary.info.totalTime += sectionTime;
-    summary.subPath.unshift({
-      trafficType: 4,
-      laneColor: ROUTE_COLORS.BIKE,
-      startName: a.name,
-      endName: b.name,
-      sectionTime,
-      distance,
-      avgSpeed: (distance / 1000) / (duration / 3600),
-    });
-  }
 
   return { segments, summary };
 }
@@ -147,39 +157,66 @@ export default function IntegratedRoute({
         const dist1 = haversine(start.lat, start.lng, via.lat, via.lng);
         const dist2 = haversine(via.lat, via.lng, end.lat, end.lng);
 
-        const [res1, res2] = await Promise.all([
-          fetchOdsayRoute(
-            { y: start.lat, x: start.lng },
-            { y: via.lat, x: via.lng },
-            null,
-            { searchType: 0, searchPathType: 0 }
-          ),
-          fetchOdsayRoute(
+        const segList1 = [];
+        const segList2 = [];
+
+        if (dist1 >= dist2) {
+          try {
+            segList1.push(await buildSegment(start, via, null, true));
+          } catch (e) {
+            console.error(e);
+          }
+
+          const res2 = await fetchOdsayRoute(
             { y: via.lat, x: via.lng },
             { y: end.lat, x: end.lng },
             null,
             { searchType: 0, searchPathType: 0 }
-          ),
-        ]);
-
-        const paths1 = res1?.result?.path?.slice(0, 5) || [];
-        const paths2 = res2?.result?.path?.slice(0, 5) || [];
-
-        const segList1 = [];
-        for (const p of paths1) {
+          );
+          const paths2 = res2?.result?.path?.slice(0, 5) || [];
+          if (paths2.length > 0) {
+            for (const p of paths2) {
+              try {
+                segList2.push(await buildSegment(via, end, p, false));
+              } catch (e) {
+                console.error(e);
+              }
+            }
+          } else {
+            try {
+              segList2.push(await buildSegment(via, end, null, true));
+            } catch (e) {
+              console.error(e);
+            }
+          }
+        } else {
           try {
-            segList1.push(await buildSegment(start, via, p, dist1 >= dist2));
+            segList2.push(await buildSegment(via, end, null, true));
           } catch (e) {
             console.error(e);
           }
-        }
 
-        const segList2 = [];
-        for (const p of paths2) {
-          try {
-            segList2.push(await buildSegment(via, end, p, dist2 > dist1));
-          } catch (e) {
-            console.error(e);
+          const res1 = await fetchOdsayRoute(
+            { y: start.lat, x: start.lng },
+            { y: via.lat, x: via.lng },
+            null,
+            { searchType: 0, searchPathType: 0 }
+          );
+          const paths1 = res1?.result?.path?.slice(0, 5) || [];
+          if (paths1.length > 0) {
+            for (const p of paths1) {
+              try {
+                segList1.push(await buildSegment(start, via, p, false));
+              } catch (e) {
+                console.error(e);
+              }
+            }
+          } else {
+            try {
+              segList1.push(await buildSegment(start, via, null, true));
+            } catch (e) {
+              console.error(e);
+            }
           }
         }
 
