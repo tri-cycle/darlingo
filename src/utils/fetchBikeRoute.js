@@ -34,7 +34,11 @@ export function clearBikeRouteCache() {
  * @param {Array<Array<number>>} coordinates 경유지를 포함한 [lng, lat] 배열
  *   예: [[lng1, lat1], [lng2, lat2], ...]
  */
-export async function fetchBikeRoute(coordinates, retries = 1) {
+export async function fetchBikeRoute(
+  coordinates,
+  retries = 3,
+  delay = 1000
+) {
   const key = coordinates.map((c) => `${c[0]},${c[1]}`).join("|");
   if (cache.has(key)) {
     return cache.get(key);
@@ -64,12 +68,14 @@ export async function fetchBikeRoute(coordinates, retries = 1) {
 
     if (!res.ok) {
       if ((res.status === 429 || res.status >= 500) && retries > 0) {
-        await new Promise((r) => setTimeout(r, 1000));
-        return fetchBikeRoute(coordinates, retries - 1);
+        await new Promise((r) => setTimeout(r, delay));
+        return fetchBikeRoute(coordinates, retries - 1, delay * 2);
       }
       const errBody = await res.json().catch(() => ({}));
       throw new Error(
-        `ORS error ${res.status}: ${errBody.error?.message || res.statusText}`
+        `ORS HTTP ${res.status} (${errBody.error?.code || "unknown"}): ${
+          errBody.error?.message || res.statusText
+        }`
       );
     }
 
