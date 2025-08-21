@@ -1,0 +1,97 @@
+// src/utils/fetchBikeRoute.js
+const ORS_API_KEY = import.meta.env.VITE_ORS_API_KEY;
+
+// in-memory cache: key is "lng,lat|lng,lat|..." for all waypoints
+const cache = new Map();
+
+// 최근 1분간 ORS 호출 시각을 저장하여 rate limit을 관리합니다.
+const callTimes = [];
+const LIMIT_PER_MINUTE = 40;
+
+async function ensureRateLimit() {
+  const now = Date.now();
+  // 1분을 지난 호출 기록은 제거합니다.
+  while (callTimes.length && now - callTimes[0] >= 60000) {
+    callTimes.shift();
+  }
+  if (callTimes.length >= LIMIT_PER_MINUTE) {
+    // 가장 오래된 호출로부터 1분이 지날 때까지 대기합니다.
+    const waitMs = 60000 - (now - callTimes[0]) + 10;
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+    return ensureRateLimit();
+  }
+  callTimes.push(Date.now());
+}
+
+// cache clear helper
+export function clearBikeRouteCache() {
+  cache.clear();
+}
+
+/**
+ * ORS 자전거 경로를 조회합니다.
+ *
+ * @param {Array<Array<number>>} coordinates 경유지를 포함한 [lng, lat] 배열
+ *   예: [[lng1, lat1], [lng2, lat2], ...]
+ */
+export async function fetchBikeRoute(coordinates) {
+
+  const key = coordinates.map((c) => `${c[0]},${c[1]}`).join('|');
+  if (cache.has(key)) {
+    // 캐시에 저장된 promise 혹은 결과 반환
+    return cache.get(key);
+  }
+
+  // 요청을 시작하면 즉시 promise를 캐시에 저장하여 중복 호출을 방지합니다.
+  const promise = (async () => {
+
+  // 호출 회수를 제한하기 위해 rate limit을 확인합니다.
+  await ensureRateLimit();
+
+  // --- ⬇️ (수정된 부분) ⬇️ ---
+  // API 호출 직전에 어떤 값으로 요청하는지 콘솔에 출력합니다.
+  console.log("🚀 ORS API 호출 시작:", coordinates);
+  // --- ⬆️ (수정된 부분) ⬆️ ---
+
+  const res = await fetch(
+    "https://api.openrouteservice.org/v2/directions/cycling-road/json",
+    {
+      method: "POST",
+      headers: {
+        Authorization: ORS_API_KEY,
+        "Content-Type": "application/json; charset=utf-8",
+      },
+      body: JSON.stringify({
+        coordinates,
+        options: {
+          avoid_features: ["steps"],
+          profile_params: {
+            weightings: {
+              steepness_difficulty: 0,
+            }
+          }
+        }
+      }),
+    }
+  );
+  
+  if (!res.ok) throw new Error(`ORS error ${res.status}: ${await res.text()}`);
+
+  const data = await res.json();
+
+  // --- ⬇️ (수정된 부분) ⬇️ ---
+  // API로부터 성공적으로 응답을 받았음을 콘솔에 출력합니다.
+  console.log("✅ ORS API 응답 성공:", data.routes[0].summary);
+  // --- ⬆️ (수정된 부분) ⬆️ ---
+  
+    return data;
+  })()
+    .catch((err) => {
+      // 실패 시 캐시에서 제거하여 다음 호출에서 재시도 가능하게 함
+      cache.delete(key);
+      throw err;
+    });
+
+  cache.set(key, promise);
+  return promise;
+}

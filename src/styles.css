@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+/* 필요 시 여기에 공통 스타일 추가 가능 */
+body {
+  margin: 0;
+  font-family: "Pretendard", "Noto Sans KR", sans-serif;
+  background-color: #f9f9f9;
+  color: #222;
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+}
