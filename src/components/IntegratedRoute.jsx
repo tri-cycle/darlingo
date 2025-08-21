@@ -5,13 +5,13 @@ import haversine from "../utils/haversine"; // 거리 계산을 위해 import
 
 // 거리에 따라 적절한 줌 레벨을 반환하는 함수
 function getZoomLevelForDistance(distance) {
-  if (distance > 40000) return 11;
-  if (distance > 20000) return 12;
-  if (distance > 10000) return 13;
-  if (distance > 5000) return 14;
-  if (distance > 2500) return 15;
-  if (distance > 1200) return 16;
-  return 17; // 1.2km 미만
+  if (distance > 40000) return 10;
+  if (distance > 20000) return 11;
+  if (distance > 10000) return 12;
+  if (distance > 5000) return 13;
+  if (distance > 2500) return 14;
+  if (distance > 1200) return 15;
+  return 16; // 1.2km 미만
 }
 
 
