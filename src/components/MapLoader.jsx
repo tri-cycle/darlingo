@@ -7,7 +7,9 @@ function loadScript({ src, callback, async = true, defer = true, onLoad, onError
     let script = document.querySelector(`script[src^="${base}"]`);
 
     const finish = () => {
+      if (script?.dataset.loaded === "true") return;
       script?.setAttribute("data-loaded", "true");
+      script?.removeEventListener("load", finish);
       onLoad?.();
       resolve();
     };
@@ -19,7 +21,7 @@ function loadScript({ src, callback, async = true, defer = true, onLoad, onError
         return;
       }
 
-      if (!callback) script.addEventListener("load", finish);
+      script.addEventListener("load", finish);
       script.addEventListener("error", (e) => {
         onError?.(e);
         reject(e);
@@ -29,7 +31,7 @@ function loadScript({ src, callback, async = true, defer = true, onLoad, onError
       script.src = src;
       if (async) script.async = true;
       if (defer) script.defer = true;
-      if (!callback) script.addEventListener("load", finish);
+      script.addEventListener("load", finish);
       script.addEventListener("error", (e) => {
         onError?.(e);
         reject(e);
@@ -67,8 +69,7 @@ export default function MapLoader({ children }) {
         "https://maps.googleapis.com/maps/api/js?" +
         `key=${import.meta.env.VITE_GOOGLE_KEY}` +
         `&libraries=places` +
-        `&callback=${callback}` +
-        `&loading=async`;
+        `&callback=${callback}`;
       return loadScript({ src, callback });
     };
 
