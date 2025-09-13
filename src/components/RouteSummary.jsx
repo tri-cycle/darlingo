@@ -1,6 +1,19 @@
 // src/components/RouteSummary.jsx
 import React from 'react';
 
+// 특정 교통수단(또는 복수의 교통수단)에 해당하는 구간 시간을 모두 합산하는 유틸 함수
+// `trafficType`가 단일 숫자이거나 숫자 배열일 수 있습니다.
+// `eachFn` 콜백을 전달하면 순회 중 추가 처리를 수행할 수 있습니다.
+const sumSectionTime = (subPath, trafficType, eachFn) => {
+  const types = Array.isArray(trafficType) ? trafficType : [trafficType];
+  return subPath.reduce((acc, segment, index) => {
+    if (eachFn) eachFn(segment, index);
+    return types.includes(segment.trafficType)
+      ? acc + (segment.sectionTime || 0)
+      : acc;
+  }, 0);
+};
+
 /**
  * 경로의 각 단계를 시각적으로 표현하는 아이템(세그먼트) 컴포넌트입니다.
  * @param {object} segment - 표시할 경로 구간 정보 (subPath 배열의 요소)
@@ -74,28 +87,18 @@ export default function RouteSummary({ summary }) {
   // `summary` 객체에서 총 소요 시간(info)과 세부 경로 목록(subPath)을 추출합니다.
   const { info, subPath } = summary;
 
-  // 따릉이 이용 시간과 대중교통 이용 시간을 각각 계산합니다.
-  const bikeTime = subPath.reduce(
-    (acc, seg) => (seg.trafficType === 4 ? acc + (seg.sectionTime || 0) : acc),
-    0,
-  );
-  const transitTime = subPath.reduce(
-    (acc, seg) =>
-      seg.trafficType === 1 || seg.trafficType === 2
-        ? acc + (seg.sectionTime || 0)
-        : acc,
-    0,
-  );
-
-  // "도보 0분" 문제를 해결하기 위해 화면에 표시할 경로만 필터링합니다.
-  const visibleSubPath = subPath.filter((segment, index) => {
-    // 필터링할 조건: 도보(3)이면서, 이동시간(sectionTime)이 0분이고, 첫 번째 구간(index === 0)이 아닐 때
-    const isZeroMinTransferWalk = 
+  // 대중교통 시간 계산과 동시에 "도보 0분" 필터링을 수행하여 추가 순회를 방지합니다.
+  const visibleSubPath = [];
+  const transitTime = sumSectionTime(subPath, [1, 2], (segment, index) => {
+    const isZeroMinTransferWalk =
       segment.trafficType === 3 && segment.sectionTime === 0 && index !== 0;
-    
-    // 위의 조건이 참(true)이면 필터에서 제외(false 반환), 거짓이면 포함(true 반환)
-    return !isZeroMinTransferWalk;
+    if (!isZeroMinTransferWalk) {
+      visibleSubPath.push(segment);
+    }
   });
+
+  // 따릉이 이용 시간은 별도의 합산 함수로 계산합니다.
+  const bikeTime = sumSectionTime(subPath, 4);
 
   return (
     <div className="mt-6 p-4 border rounded-lg bg-gray-50">
