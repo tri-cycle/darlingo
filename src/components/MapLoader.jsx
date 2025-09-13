@@ -4,41 +4,45 @@ import { useEffect, useState } from "react";
 function loadScript({ src, callback, async = true, defer = true, onLoad, onError }) {
   return new Promise((resolve, reject) => {
     const base = src.split("?")[0];
-    const existing = document.querySelector(`script[src^="${base}"]`);
+    let script = document.querySelector(`script[src^="${base}"]`);
 
-    if (callback) {
-      window[callback] = () => {
-        onLoad?.();
-        resolve();
-        delete window[callback];
-      };
-    }
+    const finish = () => {
+      script?.setAttribute("data-loaded", "true");
+      onLoad?.();
+      resolve();
+    };
 
-    if (existing) {
-      if (!callback) existing.addEventListener("load", () => {
-        onLoad?.();
-        resolve();
-      });
-      existing.addEventListener("error", (e) => {
+    if (script) {
+      const loaded = script.readyState === "complete" || script.dataset.loaded === "true";
+      if (loaded) {
+        finish();
+        return;
+      }
+
+      if (!callback) script.addEventListener("load", finish);
+      script.addEventListener("error", (e) => {
         onError?.(e);
         reject(e);
       });
-      return;
+    } else {
+      script = document.createElement("script");
+      script.src = src;
+      if (async) script.async = true;
+      if (defer) script.defer = true;
+      if (!callback) script.addEventListener("load", finish);
+      script.addEventListener("error", (e) => {
+        onError?.(e);
+        reject(e);
+      });
+      document.head.appendChild(script);
     }
 
-    const s = document.createElement("script");
-    s.src = src;
-    if (async) s.async = true;
-    if (defer) s.defer = true;
-    if (!callback) s.addEventListener("load", () => {
-      onLoad?.();
-      resolve();
-    });
-    s.addEventListener("error", (e) => {
-      onError?.(e);
-      reject(e);
-    });
-    document.head.appendChild(s);
+    if (callback) {
+      window[callback] = () => {
+        finish();
+        delete window[callback];
+      };
+    }
   });
 }
 
