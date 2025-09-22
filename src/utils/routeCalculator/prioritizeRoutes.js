@@ -2,6 +2,7 @@ export function prioritizeRoutes(routes) {
   if (!Array.isArray(routes)) return [];
 
   const hybridRoutes = [];
+  const transitOnlyRoutes = [];
   const bikeOnlyRoutes = [];
 
   for (const route of routes) {
@@ -9,16 +10,14 @@ export function prioritizeRoutes(routes) {
     const hasBike = subPaths.some(path => path?.trafficType === 4);
     const hasNonBike = subPaths.some(path => path?.trafficType !== 4);
 
-    if (!hasBike) {
-      continue;
-    }
-
-    if (hasNonBike) {
+    if (hasBike && hasNonBike) {
       hybridRoutes.push(route);
     } else if (hasBike) {
       bikeOnlyRoutes.push(route);
+    } else {
+      transitOnlyRoutes.push(route);
     }
   }
 
-  return [...hybridRoutes, ...bikeOnlyRoutes];
+  return [...hybridRoutes, ...transitOnlyRoutes, ...bikeOnlyRoutes];
 }

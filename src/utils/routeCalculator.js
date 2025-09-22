@@ -101,12 +101,7 @@ async function calculateWaypointRoutes({ start, end, viaPoints }) {
     console.error("전체 자전거 경로 조회 실패:", e);
   }
 
-  const bikeInclusiveCandidates = candidates.filter(candidate => {
-    const subPaths = candidate?.summary?.subPath || [];
-    return subPaths.some(path => path?.trafficType === 4);
-  });
-
-  return sortCandidates(removeDuplicates(bikeInclusiveCandidates));
+  return sortCandidates(removeDuplicates(candidates));
 }
 
 async function calculateDirectRoutes({ start, end, stations }) {
@@ -119,7 +114,6 @@ async function calculateDirectRoutes({ start, end, stations }) {
     const currentCandidates = [];
 
     if (attempt === 0) {
-      const transitCandidates = [];
       const res = await fetchOdsayRoute(
         { y: start.lat, x: start.lng },
         { y: end.lat, x: end.lng }
@@ -129,14 +123,9 @@ async function calculateDirectRoutes({ start, end, stations }) {
           const segments = await processOdsayPath(p, start, end);
           if (segments === null) continue;
           addNamesToSummary(p, start, end);
-          transitCandidates.push({ segments, summary: p });
+          currentCandidates.push({ segments, summary: p });
         }
       }
-      const bikeFriendlyCandidates = transitCandidates.filter(candidate => {
-        const subPaths = candidate?.summary?.subPath || [];
-        return subPaths.some(path => path?.trafficType === 4);
-      });
-      currentCandidates.push(...bikeFriendlyCandidates);
     }
 
     const startStation = findNearestStation(start, stations);
@@ -188,15 +177,7 @@ async function calculateDirectRoutes({ start, end, stations }) {
       }
     }
 
-    const filteredCurrentCandidates =
-      attempt === 0
-        ? currentCandidates
-        : currentCandidates.filter(candidate => {
-            const subPaths = candidate?.summary?.subPath || [];
-            return subPaths.some(path => path?.trafficType === 4);
-          });
-
-    allCandidates.push(...filteredCurrentCandidates);
+    allCandidates.push(...currentCandidates);
 
     const sortedCandidates = sortCandidates(removeDuplicates(allCandidates));
     allCandidates = sortedCandidates;
