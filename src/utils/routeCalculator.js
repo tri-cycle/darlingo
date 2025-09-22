@@ -8,6 +8,7 @@ import { ROUTE_COLORS } from "./routeColors";
 import { processOdsayPath } from "./routeCalculator/processOdsayPath";
 import { createBikeFirst } from "./routeCalculator/createBikeFirst";
 import { createBikeLast } from "./routeCalculator/createBikeLast";
+import { prioritizeRoutes } from "./routeCalculator/prioritizeRoutes.js";
 import {
   findNearestStation,
   getTotalTime,
@@ -32,7 +33,7 @@ export async function calculateCombinedRoutes({ start, end, waypoints, stations 
     console.error("경로 계산 중 오류 발생:", error);
   }
 
-  return finalRoutes.slice(0, 5);
+  return prioritizeRoutes(finalRoutes).slice(0, 5);
 }
 
 async function calculateWaypointRoutes({ start, end, viaPoints }) {
@@ -168,6 +169,7 @@ async function calculateDirectRoutes({ start, end, stations }) {
     allCandidates.push(...currentCandidates);
     if (sortCandidates(removeDuplicates(allCandidates)).length >= 5) break;
   }
-  return sortCandidates(removeDuplicates(allCandidates));
+  const sortedCandidates = sortCandidates(removeDuplicates(allCandidates));
+  return prioritizeRoutes(sortedCandidates);
 }
 
