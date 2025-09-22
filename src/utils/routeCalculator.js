@@ -104,6 +104,7 @@ async function calculateWaypointRoutes({ start, end, viaPoints }) {
 
 async function calculateDirectRoutes({ start, end, stations }) {
   let allCandidates = [];
+  let mixedRouteCount = 0;
   const MAX_ATTEMPTS = 3;
 
   for (let attempt = 0; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -171,15 +172,16 @@ async function calculateDirectRoutes({ start, end, stations }) {
     const sortedCandidates = sortCandidates(removeDuplicates(allCandidates));
     allCandidates = sortedCandidates;
 
-    const hasMixedRoute = sortedCandidates.some(candidate => {
+    mixedRouteCount = sortedCandidates.reduce((count, candidate) => {
       const subPaths = candidate?.summary?.subPath || [];
       const hasBike = subPaths.some(path => path?.trafficType === 4);
       const hasNonBike = subPaths.some(path => path?.trafficType !== 4);
-      return hasBike && hasNonBike;
-    });
+      return hasBike && hasNonBike ? count + 1 : count;
+    }, 0);
 
-    const isLastAttempt = attempt >= MAX_ATTEMPTS;
-    if (hasMixedRoute || isLastAttempt) break;
+    const triedAllScenarios = attempt >= MAX_ATTEMPTS;
+    const hasEnoughMixedRoutes = mixedRouteCount >= 5;
+    if (triedAllScenarios || hasEnoughMixedRoutes) break;
   }
   const sortedCandidates = sortCandidates(removeDuplicates(allCandidates));
   return prioritizeRoutes(sortedCandidates);
