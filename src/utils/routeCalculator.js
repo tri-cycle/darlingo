@@ -35,7 +35,7 @@ export async function calculateCombinedRoutes({ start, end, waypoints, stations 
   return finalRoutes.slice(0, 5);
 }
 
-async function calculateWaypointRoutes({ start, end, viaPoints }) {
+async function calculateWaypointRoutes({ start, end, viaPoints, stations }) {
   const candidates = [];
   const viaPoint = viaPoints[0];
 
@@ -96,6 +96,135 @@ async function calculateWaypointRoutes({ start, end, viaPoints }) {
     }
   } catch (e) {
     console.error("전체 자전거 경로 조회 실패:", e);
+  }
+
+  if (stations?.length) {
+    const startStation = findNearestStation(start, stations);
+    const viaStation = findNearestStation(viaPoint, stations);
+    const endStation = findNearestStation(end, stations);
+    const bikeTimeSec = 900;
+
+    const startToViaRoutes = [];
+    const viaToEndRoutes = [];
+
+    if (
+      startStation &&
+      viaStation &&
+      startStation.stationId !== viaStation.stationId
+    ) {
+      try {
+        const forward = await fetchTimedBikeSegments(
+          startStation,
+          viaStation,
+          stations,
+          bikeTimeSec
+        );
+        if (forward?.segment1 && forward?.transferStation) {
+          const route = await createBikeFirst({
+            start,
+            end: viaPoint,
+            startStation,
+            transferStation: forward.transferStation,
+            segment1: forward.segment1,
+            bikeTimeSec,
+          });
+          if (route) startToViaRoutes.push(route);
+        }
+      } catch (error) {
+        console.error("경유 경로(출발→경유) bike-first 생성 실패:", error);
+      }
+
+      try {
+        const backward = await fetchTimedBikeSegments(
+          viaStation,
+          startStation,
+          stations,
+          bikeTimeSec
+        );
+        if (backward?.segment1 && backward?.transferStation) {
+          const route = await createBikeLast({
+            start,
+            end: viaPoint,
+            endStation: viaStation,
+            transferStation: backward.transferStation,
+            segment1: backward.segment1,
+            bikeTimeSec,
+          });
+          if (route) startToViaRoutes.push(route);
+        }
+      } catch (error) {
+        console.error("경유 경로(출발→경유) bike-last 생성 실패:", error);
+      }
+    }
+
+    if (
+      viaStation &&
+      endStation &&
+      viaStation.stationId !== endStation.stationId
+    ) {
+      try {
+        const forward = await fetchTimedBikeSegments(
+          viaStation,
+          endStation,
+          stations,
+          bikeTimeSec
+        );
+        if (forward?.segment1 && forward?.transferStation) {
+          const route = await createBikeFirst({
+            start: viaPoint,
+            end,
+            startStation: viaStation,
+            transferStation: forward.transferStation,
+            segment1: forward.segment1,
+            bikeTimeSec,
+          });
+          if (route) viaToEndRoutes.push(route);
+        }
+      } catch (error) {
+        console.error("경유 경로(경유→도착) bike-first 생성 실패:", error);
+      }
+
+      try {
+        const backward = await fetchTimedBikeSegments(
+          endStation,
+          viaStation,
+          stations,
+          bikeTimeSec
+        );
+        if (backward?.segment1 && backward?.transferStation) {
+          const route = await createBikeLast({
+            start: viaPoint,
+            end,
+            endStation,
+            transferStation: backward.transferStation,
+            segment1: backward.segment1,
+            bikeTimeSec,
+          });
+          if (route) viaToEndRoutes.push(route);
+        }
+      } catch (error) {
+        console.error("경유 경로(경유→도착) bike-last 생성 실패:", error);
+      }
+    }
+
+    for (const leg1 of startToViaRoutes) {
+      for (const leg2 of viaToEndRoutes) {
+        const summary = {
+          info: {
+            totalTime: getTotalTime(leg1.summary) + getTotalTime(leg2.summary),
+          },
+          subPath: [
+            ...(leg1.summary?.subPath || []),
+            ...(leg2.summary?.subPath || []),
+          ],
+        };
+        addNamesToSummary(summary, start, end);
+        candidates.push({
+          segments: [...leg1.segments, ...leg2.segments],
+          summary,
+        });
+      }
+    }
   }
 
   return sortCandidates(removeDuplicates(candidates));
