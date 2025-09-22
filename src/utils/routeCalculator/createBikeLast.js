@@ -15,6 +15,51 @@ function hasTransitSegment(subPath = []) {
   return subPath.some(path => path && TRANSIT_TYPES.has(path.trafficType));
 }
 
+function selectPathsWithTransitPreference(
+  paths = [],
+  { pathIndex = 0, maxPaths = DEFAULT_PATH_LIMIT, label = "" } = {}
+) {
+  const normalizedPaths = Array.isArray(paths) ? paths : [];
+  if (!normalizedPaths.length) return [];
+
+  const transitCandidates = normalizedPaths.filter(path =>
+    hasTransitSegment(path?.subPath)
+  );
+
+  const selectedTransit = transitCandidates.slice(
+    pathIndex,
+    pathIndex + maxPaths
+  );
+
+  if (selectedTransit.length >= maxPaths) {
+    return selectedTransit.slice(0, maxPaths);
+  }
+
+  const result = [...selectedTransit];
+  const fallbackUsed = [];
+
+  for (const path of normalizedPaths) {
+    if (result.includes(path)) continue;
+    result.push(path);
+    fallbackUsed.push(path);
+    if (result.length >= maxPaths) break;
+  }
+
+  const messagePrefix = label ? `${label}:` : "createBikeLast";
+  console.warn(
+    `${messagePrefix} 대중교통 환승 경로가 충분하지 않습니다.`,
+    {
+      requested: maxPaths,
+      pathIndex,
+      availableTransit: transitCandidates.length,
+      fallbackUsed: fallbackUsed.length,
+      totalPaths: normalizedPaths.length,
+    }
+  );
+
+  return result.slice(0, maxPaths);
+}
+
 /**
  * 대중교통 이용 후 자전거로 마무리하는 경로를 생성한다.
  * @param {Object} params - 파라미터.
@@ -50,8 +95,16 @@ export async function createBikeLast({
       { y: end.lat, x: end.lng }
     );
 
-    const startPaths = (resStart?.result?.path || []).slice(pathIndex, pathIndex + maxPaths);
-    const endPaths = (resEnd?.result?.path || []).slice(pathIndex, pathIndex + maxPaths);
+    const startPaths = selectPathsWithTransitPreference(resStart?.result?.path, {
+      pathIndex,
+      maxPaths,
+      label: "createBikeLast/startPaths",
+    });
+    const endPaths = selectPathsWithTransitPreference(resEnd?.result?.path, {
+      pathIndex,
+      maxPaths,
+      label: "createBikeLast/endPaths",
+    });
 
     if (!startPaths.length || !endPaths.length) return [];
 
