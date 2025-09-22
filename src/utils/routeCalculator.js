@@ -17,6 +17,8 @@ import {
   addNamesToSummary,
 } from "./routeCalculator/helpers";
 
+const MAX_PUBLIC_TRANSIT_PATHS = 3;
+
 // --- Main Calculation Logic ---
 
 export async function calculateCombinedRoutes({ start, end, waypoints, stations }) {
@@ -137,15 +139,19 @@ async function calculateDirectRoutes({ start, end, stations }) {
           stations,
           bikeTimeSec
         );
-        const r1 = await createBikeFirst({
-          start,
-          end,
-          startStation,
-          transferStation: forward.transferStation,
-          segment1: forward.segment1,
-          bikeTimeSec,
-        });
-        if (r1) currentCandidates.push(r1);
+
+        if (forward?.segment1 && forward?.transferStation) {
+          const candidatesForward = await createBikeFirst({
+            start,
+            end,
+            startStation,
+            transferStation: forward.transferStation,
+            segment1: forward.segment1,
+            bikeTimeSec,
+            maxPaths: MAX_PUBLIC_TRANSIT_PATHS,
+          });
+          currentCandidates.push(...candidatesForward);
+        }
 
         const backward = await fetchTimedBikeSegments(
           endStation,
@@ -153,15 +159,19 @@ async function calculateDirectRoutes({ start, end, stations }) {
           stations,
           bikeTimeSec
         );
-        const r2 = await createBikeLast({
-          start,
-          end,
-          endStation,
-          transferStation: backward.transferStation,
-          segment1: backward.segment1,
-          bikeTimeSec,
-        });
-        if (r2) currentCandidates.push(r2);
+
+        if (backward?.segment1 && backward?.transferStation) {
+          const candidatesBackward = await createBikeLast({
+            start,
+            end,
+            endStation,
+            transferStation: backward.transferStation,
+            segment1: backward.segment1,
+            bikeTimeSec,
+            maxPaths: MAX_PUBLIC_TRANSIT_PATHS,
+          });
+          currentCandidates.push(...candidatesBackward);
+        }
       } catch (e) {
         console.error(`자전거 경로 생성 실패 (시간: ${bikeTimeSec}s):`, e);
       }

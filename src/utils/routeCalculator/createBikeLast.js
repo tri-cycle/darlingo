@@ -4,6 +4,17 @@ import { ROUTE_COLORS } from "../routeColors";
 import { processOdsayPath } from "./processOdsayPath";
 import { getTotalTime, addNamesToSummary } from "./helpers";
 
+const DEFAULT_PATH_LIMIT = 3;
+const TRANSIT_TYPES = new Set([1, 2]);
+
+function cloneSubPath(subPath = []) {
+  return subPath.map(path => ({ ...path }));
+}
+
+function hasTransitSegment(subPath = []) {
+  return subPath.some(path => path && TRANSIT_TYPES.has(path.trafficType));
+}
+
 /**
  * 대중교통 이용 후 자전거로 마무리하는 경로를 생성한다.
  * @param {Object} params - 파라미터.
@@ -13,8 +24,9 @@ import { getTotalTime, addNamesToSummary } from "./helpers";
  * @param {Object} params.transferStation - 환승 대여소.
  * @param {Object} params.segment1 - 자전거 경로 정보.
  * @param {number} params.bikeTimeSec - 자전거 이용 시간(초).
- * @param {number} [params.pathIndex=0] - Odsay 경로 인덱스.
- * @returns {Promise<{segments:Array, summary:Object}|null>} 생성된 경로 정보. 실패 시 null.
+ * @param {number} [params.pathIndex=0] - 시작 인덱스.
+ * @param {number} [params.maxPaths=3] - 고려할 최대 경로 수.
+ * @returns {Promise<Array<{segments:Array, summary:Object}>>} 생성된 경로 후보 목록.
  */
 export async function createBikeLast({
   start,
@@ -24,22 +36,48 @@ export async function createBikeLast({
   segment1,
   bikeTimeSec,
   pathIndex = 0,
+  maxPaths = DEFAULT_PATH_LIMIT,
 }) {
   try {
-    if (!endStation || !transferStation || !segment1?.routes?.[0]?.summary) return null;
+    if (!endStation || !transferStation || !segment1?.routes?.[0]?.summary) return [];
 
     const resStart = await fetchOdsayRoute(
       { y: start.lat, x: start.lng },
       { y: +transferStation.stationLatitude, x: +transferStation.stationLongitude }
     );
-    const startPath = resStart?.result?.path?.[pathIndex];
-    if (!startPath) return null;
-    const startSegments = await processOdsayPath(
-      startPath,
-      start,
-      { lat: +transferStation.stationLatitude, lng: +transferStation.stationLongitude }
+    const resEnd = await fetchOdsayRoute(
+      { y: +endStation.stationLatitude, x: +endStation.stationLongitude },
+      { y: end.lat, x: end.lng }
     );
-    if (startSegments === null) return null;
+
+    const startPaths = (resStart?.result?.path || []).slice(pathIndex, pathIndex + maxPaths);
+    const endPaths = (resEnd?.result?.path || []).slice(pathIndex, pathIndex + maxPaths);
+
+    if (!startPaths.length || !endPaths.length) return [];
+
+    const processedStartPaths = [];
+    for (const startPath of startPaths) {
+      const startSegments = await processOdsayPath(
+        startPath,
+        start,
+        { lat: +transferStation.stationLatitude, lng: +transferStation.stationLongitude }
+      );
+      if (startSegments === null) continue;
+      processedStartPaths.push({ path: startPath, segments: startSegments });
+    }
+
+    const processedEndPaths = [];
+    for (const endPath of endPaths) {
+      const endSegments = await processOdsayPath(
+        endPath,
+        { lat: +endStation.stationLatitude, lng: +endStation.stationLongitude },
+        end
+      );
+      if (endSegments === null) continue;
+      processedEndPaths.push({ path: endPath, segments: endSegments });
+    }
+
+    if (!processedStartPaths.length || !processedEndPaths.length) return [];
 
     const { distance } = segment1.routes[0].summary;
     const bikeTimeMin = Math.max(1, Math.round(bikeTimeSec / 60));
@@ -58,28 +96,36 @@ export async function createBikeLast({
       .map(([lat, lng]) => new window.naver.maps.LatLng(lat, lng));
     const bikeSegment = { type: "bike", color: ROUTE_COLORS.BIKE, coords: bikeCoords };
 
-    const resEnd = await fetchOdsayRoute(
-      { y: +endStation.stationLatitude, x: +endStation.stationLongitude },
-      { y: end.lat, x: end.lng }
-    );
-    const endPath = resEnd?.result?.path?.[pathIndex];
-    if (!endPath) return null;
-    const endSegments = await processOdsayPath(
-      endPath,
-      { lat: +endStation.stationLatitude, lng: +endStation.stationLongitude },
-      end
-    );
-    if (endSegments === null) return null;
+    const candidates = [];
 
-    const summary = {
-      info: { totalTime: getTotalTime(startPath) + bikeTimeMin + getTotalTime(endPath) },
-      subPath: [...(startPath.subPath || []), bikeSubPath, ...(endPath.subPath || [])],
-    };
-    addNamesToSummary(summary, start, end);
-    return { segments: [...startSegments, bikeSegment, ...endSegments], summary };
+    for (const { path: startPath, segments: startSegments } of processedStartPaths) {
+      for (const { path: endPath, segments: endSegments } of processedEndPaths) {
+        const combinedSubPath = [
+          ...cloneSubPath(startPath.subPath || []),
+          { ...bikeSubPath },
+          ...cloneSubPath(endPath.subPath || []),
+        ];
+
+        if (!hasTransitSegment(combinedSubPath)) continue;
+
+        const summary = {
+          info: {
+            totalTime: getTotalTime(startPath) + bikeTimeMin + getTotalTime(endPath),
+          },
+          subPath: combinedSubPath,
+        };
+        addNamesToSummary(summary, start, end);
+        candidates.push({
+          segments: [...startSegments, { ...bikeSegment }, ...endSegments],
+          summary,
+        });
+      }
+    }
+
+    return candidates;
   } catch (error) {
     console.error("createBikeLast 실패:", error);
-    return null;
+    return [];
   }
 }
 
