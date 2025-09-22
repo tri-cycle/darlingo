@@ -167,7 +167,19 @@ async function calculateDirectRoutes({ start, end, stations }) {
     }
 
     allCandidates.push(...currentCandidates);
-    if (sortCandidates(removeDuplicates(allCandidates)).length >= 5) break;
+
+    const sortedCandidates = sortCandidates(removeDuplicates(allCandidates));
+    allCandidates = sortedCandidates;
+
+    const hasMixedRoute = sortedCandidates.some(candidate => {
+      const subPaths = candidate?.summary?.subPath || [];
+      const hasBike = subPaths.some(path => path?.trafficType === 4);
+      const hasNonBike = subPaths.some(path => path?.trafficType !== 4);
+      return hasBike && hasNonBike;
+    });
+
+    const isLastAttempt = attempt >= MAX_ATTEMPTS;
+    if (hasMixedRoute || isLastAttempt) break;
   }
   const sortedCandidates = sortCandidates(removeDuplicates(allCandidates));
   return prioritizeRoutes(sortedCandidates);
