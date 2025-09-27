@@ -1,13 +1,6 @@
 import { fetchTmapRoute } from "../fetchTmapRoute";
 import { getColorByTrafficType } from "../routeColors";
 
-/**
- * Odsay API 경로 정보를 네이버 지도용 세그먼트로 변환한다.
- * @param {object} odsayPath - Odsay API의 path 객체.
- * @param {{lat:number,lng:number}} overallStart - 전체 경로 시작 좌표.
- * @param {{lat:number,lng:number}} overallEnd - 전체 경로 종료 좌표.
- * @returns {Promise<Array<{type:string,color:string,coords:Array}>|null>} 변환된 세그먼트 배열. 실패 시 null.
- */
 export async function processOdsayPath(odsayPath, overallStart, overallEnd) {
   try {
     const subPaths = odsayPath?.subPath || [];
@@ -65,4 +58,3 @@ export async function processOdsayPath(odsayPath, overallStart, overallEnd) {
     return null;
   }
 }
-

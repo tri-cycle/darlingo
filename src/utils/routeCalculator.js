@@ -105,95 +105,69 @@ async function calculateWaypointRoutes({ start, end, viaPoints }) {
 }
 
 async function calculateDirectRoutes({ start, end, stations }) {
-  let allCandidates = [];
-  let mixedRouteCount = 0;
+  let hybridCandidates = [];
   const MAX_ATTEMPTS = 3;
 
-  for (let attempt = 0; attempt <= MAX_ATTEMPTS; attempt++) {
-    const bikeTimeSec = 900 + attempt * 900;
-    const currentCandidates = [];
+  const startStation = findNearestStation(start, stations);
+  const endStation = findNearestStation(end, stations);
 
-    if (attempt === 0) {
-      const res = await fetchOdsayRoute(
-        { y: start.lat, x: start.lng },
-        { y: end.lat, x: end.lng }
-      );
-      if (res?.result?.path) {
-        for (const p of res.result.path.slice(0, 5)) {
-          const segments = await processOdsayPath(p, start, end);
-          if (segments === null) continue;
-          addNamesToSummary(p, start, end);
-          currentCandidates.push({ segments, summary: p });
-        }
-      }
-    }
-
-    const startStation = findNearestStation(start, stations);
-    const endStation = findNearestStation(end, stations);
-
-    if (startStation && endStation && startStation.stationId !== endStation.stationId) {
+  if (startStation && endStation && startStation.stationId !== endStation.stationId) {
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      const bikeTimeSec = 900 + attempt * 900;
       try {
-        const forward = await fetchTimedBikeSegments(
-          startStation,
-          endStation,
-          stations,
-          bikeTimeSec
-        );
-
-        if (forward?.segment1 && forward?.transferStation) {
-          const candidatesForward = await createBikeFirst({
-            start,
-            end,
-            startStation,
-            transferStation: forward.transferStation,
-            segment1: forward.segment1,
-            bikeTimeSec,
+        const forwardTransferCandidates = await fetchTimedBikeSegments(startStation, endStation, stations, bikeTimeSec);
+        const forwardPromises = forwardTransferCandidates.map(transferStation =>
+          createBikeFirst({
+            start, end, startStation, transferStation, bikeTimeSec,
             maxPaths: MAX_PUBLIC_TRANSIT_PATHS,
-          });
-          currentCandidates.push(...candidatesForward);
-        }
-
-        const backward = await fetchTimedBikeSegments(
-          endStation,
-          startStation,
-          stations,
-          bikeTimeSec
+          })
         );
+        const forwardResults = await Promise.all(forwardPromises);
+        hybridCandidates.push(...forwardResults.flat());
 
-        if (backward?.segment1 && backward?.transferStation) {
-          const candidatesBackward = await createBikeLast({
-            start,
-            end,
-            endStation,
-            transferStation: backward.transferStation,
-            segment1: backward.segment1,
-            bikeTimeSec,
+        const backwardTransferCandidates = await fetchTimedBikeSegments(endStation, startStation, stations, bikeTimeSec);
+        const backwardPromises = backwardTransferCandidates.map(transferStation =>
+          createBikeLast({
+            start, end, endStation, transferStation, bikeTimeSec,
             maxPaths: MAX_PUBLIC_TRANSIT_PATHS,
-          });
-          currentCandidates.push(...candidatesBackward);
-        }
+          })
+        );
+        const backwardResults = await Promise.all(backwardPromises);
+        hybridCandidates.push(...backwardResults.flat());
+
       } catch (e) {
         console.error(`자전거 경로 생성 실패 (시간: ${bikeTimeSec}s):`, e);
       }
     }
-
-    allCandidates.push(...currentCandidates);
-
-    const sortedCandidates = sortCandidates(removeDuplicates(allCandidates));
-    allCandidates = sortedCandidates;
-
-    mixedRouteCount = sortedCandidates.reduce((count, candidate) => {
-      const subPaths = candidate?.summary?.subPath || [];
-      const hasBike = subPaths.some(path => path?.trafficType === 4);
-      const hasNonBike = subPaths.some(path => path?.trafficType !== 4);
-      return hasBike && hasNonBike ? count + 1 : count;
-    }, 0);
-
-    const triedAllScenarios = attempt >= MAX_ATTEMPTS;
-    const hasEnoughMixedRoutes = mixedRouteCount >= 5;
-    if (triedAllScenarios || hasEnoughMixedRoutes) break;
   }
-  const sortedCandidates = sortCandidates(removeDuplicates(allCandidates));
-  return prioritizeRoutes(sortedCandidates);
-}
 
+  const uniqueHybridRoutes = sortCandidates(removeDuplicates(hybridCandidates));
+
+  if (uniqueHybridRoutes.length >= 5) {
+    return uniqueHybridRoutes;
+  }
+
+  let transitOnlyCandidates = [];
+  const res = await fetchOdsayRoute(
+    { y: start.lat, x: start.lng },
+    { y: end.lat, x: end.lng }
+  );
+  if (res?.result?.path) {
+    for (const p of res.result.path.slice(0, 5)) {
+      const segments = await processOdsayPath(p, start, end);
+      if (segments === null) continue;
+      addNamesToSummary(p, start, end);
+      transitOnlyCandidates.push({ segments, summary: p });
+    }
+  }
+
+  const remainingNeeded = 5 - uniqueHybridRoutes.length;
+  const sortedTransitRoutes = sortCandidates(removeDuplicates(transitOnlyCandidates));
+
+  const finalCombinedRoutes = [
+    ...uniqueHybridRoutes,
+    ...sortedTransitRoutes.slice(0, remainingNeeded)
+  ];
+
+  return finalCombinedRoutes;
+}

@@ -34,32 +34,6 @@ function getZoomLevelForDistance(distance) {
   return 15; // 1.2km 미만
 }
 
-function updateMapCenterAndZoom(map, start, end) {
-  const hasStart = start?.lat && start?.lng;
-  const hasEnd = end?.lat && end?.lng;
-  let center = null;
-
-  if (hasStart && hasEnd) {
-    center = {
-      lat: (start.lat + end.lat) / 2,
-      lng: (start.lng + end.lng) / 2,
-    };
-    map.setCenter(new window.naver.maps.LatLng(center.lat, center.lng));
-    const distance = haversine(start.lat, start.lng, end.lat, end.lng);
-    map.setZoom(getZoomLevelForDistance(distance));
-  } else if (hasStart) {
-    center = { lat: start.lat, lng: start.lng };
-    map.setCenter(new window.naver.maps.LatLng(center.lat, center.lng));
-    map.setZoom(15);
-  } else if (hasEnd) {
-    center = { lat: end.lat, lng: end.lng };
-    map.setCenter(new window.naver.maps.LatLng(center.lat, center.lng));
-    map.setZoom(15);
-  }
-
-  return center;
-}
-
 export default function App() {
   const { startLocation, endLocation, waypoints, setStartLocation } = useContext(RouteContext);
   const { location: userLocation, error: locationError } = useCurrentLocation();
@@ -83,14 +57,29 @@ export default function App() {
       setInitialLocationSet(true);
     }
   }, [userLocation, startLocation, initialLocationSet, setStartLocation]);
-
+  
   useEffect(() => {
     if (!mapInstance) return;
-    if (!startLocation && !endLocation) return;
+    const hasStart = startLocation?.lat && startLocation?.lng;
+    const hasEnd = endLocation?.lat && endLocation?.lng;
 
-    const center = updateMapCenterAndZoom(mapInstance, startLocation, endLocation);
-    if (center) setMapCenter(center);
-    setStatsCenter(startLocation ?? null);
+    if (hasStart && hasEnd) {
+        const centerLat = (startLocation.lat + endLocation.lat) / 2;
+        const centerLng = (startLocation.lng + endLocation.lng) / 2;
+        mapInstance.setCenter(new window.naver.maps.LatLng(centerLat, centerLng));
+        const distance = haversine(startLocation.lat, startLocation.lng, endLocation.lat, endLocation.lng);
+        const zoom = getZoomLevelForDistance(distance);
+        mapInstance.setZoom(zoom);
+    } else if (hasStart) {
+        setMapCenter({ lat: startLocation.lat, lng: startLocation.lng });
+        mapInstance.setZoom(15);
+    } else if (hasEnd) {
+        setMapCenter({ lat: endLocation.lat, lng: endLocation.lng });
+        mapInstance.setZoom(15);
+    }
+    
+    setStatsCenter(hasStart ? startLocation : null);
+
   }, [startLocation, endLocation, mapInstance]);
 
   useEffect(() => { if (locationError) console.error(locationError); }, [locationError]);
@@ -135,6 +124,7 @@ export default function App() {
     setIsCalculating(true);
     setRoutes([]);
     setSelectedRouteIndex(0);
+    // ✨ [핵심] App.jsx가 직접 routeCalculator를 호출하여 결과를 상태에 저장합니다.
     const calculatedRoutes = await calculateCombinedRoutes({ start: startLocation, end: endLocation, waypoints, stations });
     setRoutes(calculatedRoutes);
     setIsCalculating(false);
@@ -166,6 +156,7 @@ export default function App() {
             <DdarungiMarkers map={mapInstance} center={statsCenter} stations={stations} />
           ) : (
             <>
+              {/* ✨ [핵심] IntegratedRoute는 계산된 경로를 받아 그리기만 합니다. */}
               <IntegratedRoute mapInstance={mapInstance} routes={routes} selectedIndex={selectedRouteIndex} />
               <RouteStationMarkers map={mapInstance} selectedRoute={routes[selectedRouteIndex]} allStations={stations} />
             </>
