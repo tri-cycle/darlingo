@@ -1,5 +1,5 @@
 /**
- * 모든 따릉이 대여소(약 2 600개)를 페이징으로 불러온다.
+ * 모든 따릉이 대여소(약 2,600개)를 페이징으로 불러온다.
  * @returns {Promise<Array>} station 배열
  */
 export async function fetchAllStations() {
@@ -11,12 +11,15 @@ export async function fetchAllStations() {
 
   for (let from = 1; from <= maxRows; from += pageSize) {
     const to = from + pageSize - 1;   // ex) 1~1000, 1001~2000 …
- const url =
+
+    // ✨ [핵심 수정] HTTPS 프로토콜에 맞는 포트 번호 8443으로 수정
+    const url =
       `https://openapi.seoul.go.kr:8443/${API_KEY}/json/bikeList/` +
       `${from}/${to}/`;
 
     const res  = await fetch(url);
     const data = await res.json();
+
     // 오류나 마지막 페이지에서 'row'가 없으면 중단
     const rows = data?.rentBikeStatus?.row || [];
     if (!rows.length) break;
