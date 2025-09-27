@@ -11,14 +11,12 @@ export async function fetchAllStations() {
 
   for (let from = 1; from <= maxRows; from += pageSize) {
     const to = from + pageSize - 1;   // ex) 1~1000, 1001~2000 …
-
-    const url =
-      `https://openapi.seoul.go.kr:8088/${API_KEY}/json/bikeList/` +
+ const url =
+      `https://openapi.seoul.go.kr:8443/${API_KEY}/json/bikeList/` +
       `${from}/${to}/`;
 
     const res  = await fetch(url);
     const data = await res.json();
-
     // 오류나 마지막 페이지에서 'row'가 없으면 중단
     const rows = data?.rentBikeStatus?.row || [];
     if (!rows.length) break;
