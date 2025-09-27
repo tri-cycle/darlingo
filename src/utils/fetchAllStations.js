@@ -12,19 +12,24 @@ export async function fetchAllStations() {
   for (let from = 1; from <= maxRows; from += pageSize) {
     const to = from + pageSize - 1;   // ex) 1~1000, 1001~2000 …
 
-    // ✨ [핵심 수정] HTTPS 프로토콜에 맞는 포트 번호 8443으로 수정
+    // ✨ [핵심 수정] https 프로토콜과 기본 포트(생략 가능)를 사용하는 주소로 변경
     const url =
-      `https://openapi.seoul.go.kr:8443/${API_KEY}/json/bikeList/` +
-      `${from}/${to}/`;
+      `https://openapi.seoul.go.kr:443/${API_KEY}/json/bikeList/${from}/${to}/`;
 
-    const res  = await fetch(url);
-    const data = await res.json();
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
 
-    // 오류나 마지막 페이지에서 'row'가 없으면 중단
-    const rows = data?.rentBikeStatus?.row || [];
-    if (!rows.length) break;
+      // 오류나 마지막 페이지에서 'row'가 없으면 중단
+      const rows = data?.rentBikeStatus?.row || [];
+      if (!rows.length) break;
 
-    all = all.concat(rows);
+      all = all.concat(rows);
+    } catch (error) {
+      console.error(`API 요청 실패 (from: ${from}, to: ${to}):`, error);
+      // 특정 페이지에서 실패하더라도 다음 페이지는 시도하도록 continue 추가
+      continue; 
+    }
   }
 
   return all;
