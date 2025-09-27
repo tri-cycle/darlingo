@@ -13,7 +13,7 @@ export async function fetchAllStations() {
     const to = from + pageSize - 1;   // ex) 1~1000, 1001~2000 …
 
     const url =
-      `http://openapi.seoul.go.kr:8088/${API_KEY}/json/bikeList/` +
+      `https://openapi.seoul.go.kr:8088/${API_KEY}/json/bikeList/` +
       `${from}/${to}/`;
 
     const res  = await fetch(url);
