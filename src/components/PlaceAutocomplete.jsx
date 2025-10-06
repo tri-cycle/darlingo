@@ -201,57 +201,138 @@ export default function PlaceAutocomplete({
 
   return (
     <div className="relative w-full">
-      <input
-        ref={inputRef}
-        type="text"
-        placeholder={placeholder || "장소를 입력하세요"}
-        value={inputValue}
-        onChange={handleInputChange}
-        onFocus={handleFocus} // 수정된 포커스 핸들러 연결
-        onBlur={handleBlur}
-        className="w-full p-2 border rounded-md"
-      />
+      <div className="relative">
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder={placeholder || "장소를 입력하세요"}
+          value={inputValue}
+          onChange={handleInputChange}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          className="w-full p-4 pl-12 border-2 border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-sm hover:shadow-md focus:shadow-lg font-medium"
+        />
+        
+        {/* 검색 아이콘 */}
+        <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
+          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </div>
 
-      {inputValue && (
-        <button
-          type="button"
-          onClick={() => {
-            setInputValue('');
-            setPredictions([]);
-            onPlaceSelected?.(null);
-            onValueChange?.('');
-          }}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-        >
-          ×
-        </button>
-      )}
+        {/* 클리어 버튼 */}
+        {inputValue && (
+          <button
+            type="button"
+            onClick={() => {
+              setInputValue('');
+              setPredictions([]);
+              onPlaceSelected?.(null);
+              onValueChange?.('');
+            }}
+            className="absolute right-4 top-1/2 transform -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all duration-200"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
 
       {/* 포커스가 있을 때만 목록을 보여줍니다. */}
       {isFocused && (
-        <ul className="absolute w-full bg-white border border-gray-300 rounded-md mt-1 shadow-lg" style={{zIndex: 1000}}>
+        <div className="absolute w-full bg-white/95 backdrop-blur-lg border border-gray-200 rounded-2xl mt-2 shadow-2xl overflow-hidden z-50 max-h-80 overflow-y-auto">
           {/* 입력값이 없을 때는 최근 검색어, 있을 때는 추천 검색어를 보여줍니다. */}
           {inputValue.length === 0 && recentSearches.length > 0 ? (
             <>
-              <li className="px-4 py-2 text-sm text-gray-500">최근 검색</li>
+              <div className="px-6 py-4 bg-gradient-to-r from-gray-50 to-blue-50 border-b border-gray-100">
+                <div className="flex items-center space-x-2">
+                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-sm font-semibold text-gray-600">최근 검색</span>
+                </div>
+              </div>
               {recentSearches.map((place) => (
-                <li key={place.name} onMouseDown={() => handleRecentClick(place)} className="px-4 py-2 cursor-pointer hover:bg-gray-100 flex justify-between items-center">
-                  <span>{place.name}</span>
-                  <button onMouseDown={(e) => { e.stopPropagation(); removeRecentSearch(place.name);}} className="text-gray-400 hover:text-gray-700 text-xl">×</button>
-                </li>
+                <div 
+                  key={place.name} 
+                  onMouseDown={() => handleRecentClick(place)} 
+                  className="group px-6 py-4 cursor-pointer hover:bg-blue-50 transition-all duration-200 flex justify-between items-center border-b border-gray-50 last:border-b-0"
+                >
+                  <div className="flex items-center space-x-4">
+                    <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center group-hover:bg-blue-100 transition-colors duration-200">
+                      <svg className="w-4 h-4 text-gray-500 group-hover:text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900 group-hover:text-blue-900">{place.name}</p>
+                      {place.address && (
+                        <p className="text-sm text-gray-500 group-hover:text-blue-600">{place.address}</p>
+                      )}
+                    </div>
+                  </div>
+                  <button 
+                    onMouseDown={(e) => { 
+                      e.stopPropagation(); 
+                      removeRecentSearch(place.name);
+                    }} 
+                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all duration-200 opacity-0 group-hover:opacity-100"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
               ))}
             </>
-          ) : (
-            predictions.map((prediction) => (
-              <li key={prediction.placePrediction.placeId} onMouseDown={() => handlePredictionClick(prediction)} className="px-4 py-2 cursor-pointer hover:bg-gray-100">
-                <div>
-                  <span className="font-semibold">{prediction.placePrediction.structuredFormat.mainText.text}</span>
-                  <span className="text-sm text-gray-500 ml-2">{prediction.placePrediction.structuredFormat.secondaryText.text}</span>
+          ) : predictions.length > 0 ? (
+            <>
+              <div className="px-6 py-4 bg-gradient-to-r from-gray-50 to-green-50 border-b border-gray-100">
+                <div className="flex items-center space-x-2">
+                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <span className="text-sm font-semibold text-gray-600">검색 결과</span>
                 </div>
-              </li>
-            ))
-          )}
-        </ul>
+              </div>
+              {predictions.map((prediction) => (
+                <div 
+                  key={prediction.placePrediction.placeId} 
+                  onMouseDown={() => handlePredictionClick(prediction)} 
+                  className="group px-6 py-4 cursor-pointer hover:bg-green-50 transition-all duration-200 border-b border-gray-50 last:border-b-0"
+                >
+                  <div className="flex items-center space-x-4">
+                    <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center group-hover:bg-green-100 transition-colors duration-200">
+                      <svg className="w-4 h-4 text-gray-500 group-hover:text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900 group-hover:text-green-900">
+                        {prediction.placePrediction.structuredFormat.mainText.text}
+                      </p>
+                      <p className="text-sm text-gray-500 group-hover:text-green-600">
+                        {prediction.placePrediction.structuredFormat.secondaryText.text}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </>
+          ) : inputValue.length > 0 ? (
+            <div className="px-6 py-8 text-center">
+              <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <p className="text-gray-500 text-sm">검색 결과가 없습니다.</p>
+            </div>
+          ) : null}
+        </div>
       )}
     </div>
   );

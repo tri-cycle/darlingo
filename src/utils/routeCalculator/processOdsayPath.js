@@ -20,13 +20,18 @@ export async function processOdsayPath(odsayPath, overallStart, overallEnd) {
       const color = getColorByTrafficType(sp.trafficType);
 
       if (sp.trafficType === 1 || sp.trafficType === 2) {
+        // 🚇 지하철 or 🚌 버스
         if (sp.passStopList?.stations) {
-          coords = sp.passStopList.stations.map(s => new window.naver.maps.LatLng(+s.y, +s.x));
+          coords = sp.passStopList.stations.map(
+            s => new window.naver.maps.LatLng(+s.y, +s.x)
+          );
         }
       } else if (sp.trafficType === 3) {
+        // 🚶 도보
         let startPoint, endPoint;
         const prevPath = subPaths[i - 1];
         const nextPath = subPaths[i + 1];
+
         if (i === 0) startPoint = overallStart;
         else if (prevPath?.passStopList?.stations?.length > 0) {
           startPoint = {
@@ -34,6 +39,7 @@ export async function processOdsayPath(odsayPath, overallStart, overallEnd) {
             lng: +prevPath.passStopList.stations.slice(-1)[0].x,
           };
         }
+
         if (i === subPaths.length - 1) endPoint = overallEnd;
         else if (nextPath?.passStopList?.stations?.length > 0) {
           endPoint = {
@@ -41,16 +47,27 @@ export async function processOdsayPath(odsayPath, overallStart, overallEnd) {
             lng: +nextPath.passStopList.stations[0].x,
           };
         }
+
         if (startPoint && endPoint) {
           const tmapRoute = await fetchTmapRoute(startPoint, endPoint);
-          if (!tmapRoute) return null;
-          coords = tmapRoute;
+          if (tmapRoute && tmapRoute.length > 0) {
+            coords = tmapRoute;
+          } else {
+            // ✅ fallback: 최소한 start~end 좌표만 연결
+            coords = [
+              new window.naver.maps.LatLng(startPoint.lat, startPoint.lng),
+              new window.naver.maps.LatLng(endPoint.lat, endPoint.lng),
+            ];
+            console.warn("Tmap 도보 경로 실패 → fallback 좌표로 대체");
+          }
         }
       }
 
       if (coords.length > 0) {
         const prevSegment = processedSegments[processedSegments.length - 1];
-        if (prevSegment?.coords.length > 0) coords.unshift(prevSegment.coords.slice(-1)[0]);
+        if (prevSegment?.coords.length > 0) {
+          coords.unshift(prevSegment.coords.slice(-1)[0]);
+        }
         processedSegments.push({
           ...sp,
           type: sp.trafficType === 1 ? "subway" : sp.trafficType === 2 ? "bus" : "walk",
@@ -65,4 +82,3 @@ export async function processOdsayPath(odsayPath, overallStart, overallEnd) {
     return null;
   }
 }
-

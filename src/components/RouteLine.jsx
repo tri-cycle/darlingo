@@ -1,7 +1,7 @@
 // src/components/RouteLine.jsx
 import { useEffect, useRef } from "react";
 
-export default function RouteLine({ map, coords, color = "#3880ff" }) {
+export default function RouteLine({ map, coords, color = "#10b981" }) {
     const polylineRef = useRef(null);
 
     useEffect(() => {
@@ -12,11 +12,13 @@ export default function RouteLine({ map, coords, color = "#3880ff" }) {
             const newPolyline = new window.naver.maps.Polyline({
                 map: map,
                 path: coords,
-                strokeWeight: 6,
+                strokeWeight: 8,
                 strokeColor: color,
                 strokeOpacity: 0.9,
                 strokeStyle: "solid",
-                clickable: false, 
+                strokeLineCap: "round",
+                strokeLineJoin: "round",
+                clickable: false,
             });
             polylineRef.current = newPolyline;
         } else {
