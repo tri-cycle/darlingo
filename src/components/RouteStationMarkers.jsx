@@ -39,6 +39,11 @@ export default function RouteStationMarkers({ map, selectedRoute, allStations })
         const addedStationIds = new Set();
         let currentInfoWindow = null;
 
+        // ✨ 메인 역(출발역/도착역) ID를 저장
+        const mainStationIds = new Set();
+        if (startStation) mainStationIds.add(startStation.stationId);
+        if (endStation) mainStationIds.add(endStation.stationId);
+
         // 각 검색 지점 주변의 대여소들 처리
         searchPoints.forEach(({ station, type }) => {
             const centerLat = parseFloat(station.stationLatitude);
@@ -54,11 +59,18 @@ export default function RouteStationMarkers({ map, selectedRoute, allStations })
                 const distance = haversine(centerLat, centerLng, lat, lng);
                 if (distance > STATION_SEARCH_RADIUS) return;
 
-                const bikeCount = Number(s.parkingBikeTotCnt) || 0;
                 const isMainStation = s.stationId === station.stationId;
                 
-                // 스타일 설정
-                const style = getStationStyle(type, isMainStation);
+                // ✨ 메인 역(출발역/도착역)은 건너뛰기
+                if (isMainStation) {
+                    addedStationIds.add(s.stationId);
+                    return;
+                }
+
+                const bikeCount = Number(s.parkingBikeTotCnt) || 0;
+                
+                // 스타일 설정 (이제 항상 근처 대여소 스타일)
+                const style = getStationStyle(type, false); // isMainStation = false
                 const markerIcon = createStationMarkerIcon(style, bikeCount);
                 
                 // 마커 생성
@@ -69,7 +81,7 @@ export default function RouteStationMarkers({ map, selectedRoute, allStations })
                         content: markerIcon,
                         anchor: new window.naver.maps.Point(style.size / 2, style.size / 2),
                     },
-                    zIndex: isMainStation ? 150 : 101
+                    zIndex: 101
                 });
 
                 // 인포윈도우 생성

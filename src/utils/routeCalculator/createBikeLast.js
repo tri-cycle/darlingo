@@ -22,7 +22,7 @@ export async function createBikeLast({
   endStation,
   transferStation,
   segment1,
-  bikeTimeSec,
+  bikeTimeSec, // 탐색 기준으로만 사용 (실제 표시에는 사용 안 함)
   pathIndex = 0,
   maxPaths = DEFAULT_PATH_LIMIT,
 }) {
@@ -149,18 +149,21 @@ export async function createBikeLast({
       return [];
     }
 
-    // 4. 자전거 구간 생성
-    const { distance } = segment1.routes[0].summary;
-    const bikeTimeMin = Math.max(1, Math.round(bikeTimeSec / 60));
+    // ✨ 4. 자전거 구간 생성 - 실제 ORS API 계산값 사용
+    const { distance, duration } = segment1.routes[0].summary;
+    const actualBikeTimeMin = Math.max(1, Math.round(duration / 60)); // 실제 소요 시간 (초→분)
+    const actualAvgSpeed = (distance / 1000) / (duration / 3600); // 실제 평균 속도 (km/h)
+    
     const bikeSubPath = {
       trafficType: 4,
       laneColor: ROUTE_COLORS.BIKE,
       startName: transferStation.stationName.replace(/^\d+\.\s*/, ""),
       endName: endStation.stationName.replace(/^\d+\.\s*/, ""),
-      sectionTime: bikeTimeMin,
+      sectionTime: actualBikeTimeMin, // ✨ 실제 시간 사용
       distance,
-      avgSpeed: 13,
+      avgSpeed: Math.round(actualAvgSpeed * 10) / 10, // ✨ 실제 속도 (소수점 1자리)
     };
+    
     const bikeCoords = polyline
       .decode(segment1.routes[0].geometry, 5)
       .reverse()
@@ -180,7 +183,7 @@ export async function createBikeLast({
 
         const summary = {
           info: {
-            totalTime: getTotalTime(startPath) + bikeTimeMin + getTotalTime(endPath),
+            totalTime: getTotalTime(startPath) + actualBikeTimeMin + getTotalTime(endPath), // ✨ 실제 시간 사용
           },
           subPath: combinedSubPath,
         };
@@ -193,7 +196,7 @@ export async function createBikeLast({
       }
     }
 
-    console.log(`✅ createBikeLast: ${candidates.length}개 경로 생성 완료`);
+    console.log(`✅ createBikeLast: ${candidates.length}개 경로 생성 완료 (자전거 ${actualBikeTimeMin}분)`);
     return candidates;
   } catch (error) {
     console.error("❌ createBikeLast 실패:", error);
