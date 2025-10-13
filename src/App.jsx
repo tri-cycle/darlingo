@@ -13,6 +13,7 @@ import DdarungiMarkers from "./components/DdarungiMarkers";
 import IntegratedRoute from "./components/IntegratedRoute";
 import RouteStationMarkers from "./components/RouteStationMarkers";
 import LocationMarkers from "./components/LocationMarkers";
+import ClickableMap from "./components/ClickableMap";
 import { RouteContext } from "./context/RouteContext";
 import { fetchAllStations } from "./utils/fetchAllStations";
 import RouteSummary from "./components/RouteSummary";
@@ -23,7 +24,6 @@ import { calculateCombinedRoutes } from "./utils/routeCalculator";
 
 const defaultCenter = { lat: 37.5665, lng: 126.9780 };
 
-// 거리에 따라 적절한 줌 레벨을 반환하는 함수
 function getZoomLevelForDistance(distance) {
   if (distance > 40000) return 10;
   if (distance > 20000) return 11;
@@ -31,7 +31,7 @@ function getZoomLevelForDistance(distance) {
   if (distance > 5000) return 13;
   if (distance > 2500) return 14;
   if (distance > 1200) return 15;
-  return 15; // 1.2km 미만
+  return 15;
 }
 
 function updateMapCenterAndZoom(map, start, end) {
@@ -74,12 +74,14 @@ export default function App() {
   const [nearbyStats, setNearbyStats] = useState({ stationCount: 0, bikeCount: 0 });
   const [initialLocationSet, setInitialLocationSet] = useState(false);
 
+  // 현재 위치를 통계 중심으로 설정
   useEffect(() => {
     if (userLocation && !initialLocationSet) {
       const newLocation = { lat: userLocation.lat, lng: userLocation.lng, name: "현재 위치" };
       if (!startLocation) {
         setStartLocation(newLocation);
       }
+      setStatsCenter(userLocation); // 현재 위치를 통계 중심으로 설정
       setInitialLocationSet(true);
     }
   }, [userLocation, startLocation, initialLocationSet, setStartLocation]);
@@ -90,7 +92,6 @@ export default function App() {
 
     const center = updateMapCenterAndZoom(mapInstance, startLocation, endLocation);
     if (center) setMapCenter(center);
-    setStatsCenter(startLocation ?? null);
   }, [startLocation, endLocation, mapInstance]);
 
   useEffect(() => { if (locationError) console.error(locationError); }, [locationError]);
@@ -140,9 +141,20 @@ export default function App() {
     setIsCalculating(false);
   }, [startLocation, endLocation, mapInstance, waypoints, stations]);
 
+  // 통계 중심 업데이트 핸들러
+  const handleStatsLocationUpdate = useCallback((location) => {
+    setStatsCenter(location);
+  }, []);
+
+  // 현재 위치로 통계 초기화
+  const handleResetToCurrentLocation = useCallback(() => {
+    if (userLocation) {
+      setStatsCenter(userLocation);
+    }
+  }, [userLocation]);
+
   return (
     <div className="flex h-screen relative bg-gradient-to-br from-gray-50 to-blue-50">
-      {/* 햄버거 메뉴 버튼 - 사이드바가 닫혀있을 때만 표시 */}
       {!isSidebarOpen && (
         <button 
           onClick={() => setIsSidebarOpen(true)} 
@@ -154,12 +166,10 @@ export default function App() {
         </button>
       )}
 
-      {/* 사이드바 */}
       <aside className={`${
         isSidebarOpen ? "w-[420px]" : "w-0"
       } bg-white/95 backdrop-blur-lg shadow-2xl transition-all duration-300 ease-in-out relative z-10 overflow-hidden border-r border-white/20`}>
         <div className="h-full flex flex-col">
-          {/* 헤더 */}
           <div className="flex items-center justify-between p-8 border-b border-gray-100/50 bg-gradient-to-r from-blue-600 via-blue-700 to-purple-700 text-white relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-purple-400/20 animate-pulse"></div>
             <div className="flex items-center space-x-4 relative z-10">
@@ -183,8 +193,25 @@ export default function App() {
             </button>
           </div>
 
-          {/* 통계 카드 */}
           <div className="p-8 border-b border-gray-100/50 bg-gradient-to-br from-slate-50/50 to-blue-50/50 backdrop-blur-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                <span className="text-sm font-semibold text-gray-700">
+                  {statsCenter?.lat === userLocation?.lat && statsCenter?.lng === userLocation?.lng 
+                    ? "현재 위치 근처" 
+                    : "선택한 위치 근처"}
+                </span>
+              </div>
+              {statsCenter && !(statsCenter?.lat === userLocation?.lat && statsCenter?.lng === userLocation?.lng) && (
+                <button
+                  onClick={handleResetToCurrentLocation}
+                  className="text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                >
+                  현재 위치로 ↻
+                </button>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-6">
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50 hover:shadow-xl transition-all duration-300 group">
                 <div className="flex items-center space-x-4">
@@ -216,14 +243,11 @@ export default function App() {
             </div>
           </div>
 
-          {/* 스크롤 가능한 컨텐츠 영역 */}
           <div className="flex-1 overflow-y-auto">
             <div className="p-8 space-y-8">
-              {/* 입력 폼 */}
               <div className="space-y-6">
                 <UserInputForm />
                 
-                {/* 길찾기 버튼 */}
                 <button 
                   onClick={handleCalculate} 
                   disabled={isCalculating || !startLocation || !endLocation}
@@ -249,7 +273,6 @@ export default function App() {
                 </button>
               </div>
 
-              {/* 경로 목록 */}
               {routes.length > 0 && (
                 <div className="space-y-6">
                   <RouteList 
@@ -265,14 +288,29 @@ export default function App() {
         </div>
       </aside>
 
-      {/* 지도 영역 */}
       <div className="flex-1 h-full relative">
         <MapLoader>
-          <MapView center={mapCenter} onMapLoad={handleMapLoad} className="w-full h-full rounded-l-3xl overflow-hidden shadow-2xl" />
+          <MapView 
+            center={mapCenter} 
+            onMapLoad={handleMapLoad} 
+            onCurrentLocationClick={handleResetToCurrentLocation}
+            className="w-full h-full rounded-l-3xl overflow-hidden shadow-2xl" 
+          />
           <LocationMarkers map={mapInstance} start={startLocation} end={endLocation} />
-          {routes.length === 0 ? (
-            <DdarungiMarkers map={mapInstance} center={statsCenter} stations={stations} />
-          ) : (
+          <ClickableMap 
+            map={mapInstance} 
+            stations={stations} 
+            onLocationClick={handleStatsLocationUpdate}
+          />
+          {/* 현재 위치 근처 대여소는 항상 표시 */}
+          {userLocation && (
+            <DdarungiMarkers 
+              map={mapInstance} 
+              center={userLocation} 
+              stations={stations} 
+            />
+          )}
+          {routes.length > 0 && (
             <>
               <IntegratedRoute mapInstance={mapInstance} routes={routes} selectedIndex={selectedRouteIndex} />
               <RouteStationMarkers map={mapInstance} selectedRoute={routes[selectedRouteIndex]} allStations={stations} />
