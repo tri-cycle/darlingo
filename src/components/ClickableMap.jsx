@@ -125,7 +125,35 @@ export default function ClickableMap({ map, stations }) {
             border: none;
             min-width: 250px;
             max-width: 320px;
+            position: relative;
           ">
+            <!-- 닫기 버튼 -->
+            <button 
+              id="close-info-btn"
+              style="
+                position: absolute;
+                top: 12px;
+                right: 12px;
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+                background: #f3f4f6;
+                border: none;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.2s;
+                z-index: 10;
+              "
+              onmouseover="this.style.background='#e5e7eb'"
+              onmouseout="this.style.background='#f3f4f6'"
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round">
+                <path d="M2 2L10 10M2 10L10 2"/>
+              </svg>
+            </button>
+
             <div style="
               font-size: 13px;
               color: #1f2937;
@@ -135,6 +163,7 @@ export default function ClickableMap({ map, stations }) {
               display: flex;
               align-items: flex-start;
               gap: 6px;
+              padding-right: 20px;
             ">
               <span style="font-size: 16px; flex-shrink: 0;">📍</span>
               <span style="font-weight: 600;">${placeName}</span>
@@ -189,6 +218,51 @@ export default function ClickableMap({ map, stations }) {
         disableAnchor: true,
         pixelOffset: new window.naver.maps.Point(0, -10),
       });
+
+      clickInfoWindowRef.current = infoWindow;
+      infoWindow.open(map, marker);
+
+      // 버튼 이벤트 등록
+      setTimeout(() => {
+        const closeBtn = document.getElementById('close-info-btn');
+        const startBtn = document.getElementById('set-start-btn');
+        const endBtn = document.getElementById('set-end-btn');
+
+        if (closeBtn) {
+          closeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            infoWindow.close();
+            marker.setMap(null);
+            setNearbyMarkers([]);
+          });
+        }
+
+        if (startBtn) {
+          startBtn.addEventListener('click', () => {
+            setStartLocation({ 
+              lat, 
+              lng, 
+              name: placeName
+            });
+            infoWindow.close();
+            marker.setMap(null);
+            setNearbyMarkers([]);
+          });
+        }
+
+        if (endBtn) {
+          endBtn.addEventListener('click', () => {
+            setEndLocation({ 
+              lat, 
+              lng, 
+              name: placeName
+            });
+            infoWindow.close();
+            marker.setMap(null);
+            setNearbyMarkers([]);
+          });
+        }
+      }, 100);
 
       clickInfoWindowRef.current = infoWindow;
       infoWindow.open(map, marker);

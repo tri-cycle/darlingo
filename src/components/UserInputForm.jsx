@@ -129,7 +129,7 @@ export default function UserInputForm() {
             <div className="w-6 h-6 bg-orange-100 rounded-lg flex items-center justify-center">
               <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
             </div>
-            <span>경유지 {index + 1}</span>
+            <span>경유지</span>
           </label>
           <div className="flex items-center space-x-3">
             <div className="flex-1">
