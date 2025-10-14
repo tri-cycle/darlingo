@@ -1,5 +1,6 @@
 // src/utils/fetchBikeRoute.js
-const ORS_API_KEY = import.meta.env.VITE_ORS_API_KEY;
+/* global process */
+const ORS_API_KEY = import.meta.env?.VITE_ORS_API_KEY || process.env.VITE_ORS_API_KEY;
 
 // in-memory cache: key is "lng,lat|lng,lat|..." for all waypoints
 const cache = new Map();
@@ -8,20 +9,24 @@ const cache = new Map();
 const callTimes = [];
 const LIMIT_PER_MINUTE = 40;
 
-async function ensureRateLimit() {
-  const now = Date.now();
-  // 1분을 지난 호출 기록은 제거합니다.
-  while (callTimes.length && now - callTimes[0] >= 60000) {
-    callTimes.shift();
-  }
-  if (callTimes.length >= LIMIT_PER_MINUTE) {
+export async function ensureRateLimit() {
+  while (true) {
+    const now = Date.now();
+    // 1분을 지난 호출 기록은 제거합니다.
+    while (callTimes.length && now - callTimes[0] >= 60000) {
+      callTimes.shift();
+    }
+    if (callTimes.length < LIMIT_PER_MINUTE) {
+      break;
+    }
     // 가장 오래된 호출로부터 1분이 지날 때까지 대기합니다.
     const waitMs = 60000 - (now - callTimes[0]) + 10;
     await new Promise((resolve) => setTimeout(resolve, waitMs));
-    return ensureRateLimit();
   }
   callTimes.push(Date.now());
 }
+
+export const __test = { callTimes };
 
 // cache clear helper
 export function clearBikeRouteCache() {
