@@ -48,8 +48,8 @@
 
 ### 1. 저장소 클론
 ```bash
-git clone https://github.com/your-username/ddarungi-go.git
-cd ddarungi-go
+git clone https://github.com/your-username/darlingo.git
+cd darlingo
 ```
 
 ### 2. 의존성 설치
